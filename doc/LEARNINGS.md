@@ -242,3 +242,40 @@ lesson.
   what it can't see) and would have been invisible in review. Lesson: any
   test asserting a decoded character belongs in escape form in the source —
   it is the only form that survives a diff, an editor and a grep unchanged.
+
+## Phase 7
+
+- **A spec's own "(will be ignored)" annotation can be wrong about which
+  reader should ignore the field.** `hypfmt.ui` marks the image object
+  header's `width`/`height` "(will be ignored)", which reads as "don't trust
+  these on decode" — but they're exactly right, confirmed by an exact
+  byte-count match (`ceil(width/16)*2*height` equals the plane data length)
+  across all four vendored images, and then by decoding a full image through
+  them into a legible logo. Most likely the note means "ignored/regenerated
+  by the compiler when it writes the file", not "unreliable to read". Lesson:
+  an explicit "ignored" annotation is still a claim to verify against real
+  bytes, not a instruction to skip the field — the same "verify against a
+  real file" discipline as every prior phase, now applied to a spec that
+  actively tells you not to bother.
+- **Rendering a real image end-to-end is a stronger oracle than any unit
+  assertion for a format with no ground truth in the corpus.** There's no
+  documented RGB palette and no independently-known "correct" pixel array to
+  assert against — but decoding `image.hyp`'s `rtr_logo.img` through the
+  header, row-byte formula and bit order into a hand-rolled BMP produced a
+  legible "Ardi Soft" logo (the compiler's own vendor name). A wrong bit
+  order, wrong row-byte formula, or transposed width/height would have
+  produced visible noise or a garbled image, not something that happens to
+  spell out a real name. Lesson: when a format has no per-field oracle, build
+  the actual consumer (`hyp2html`'s embedded image) before trusting synthetic
+  unit tests alone — a real decoded artifact that makes human-recognisable
+  sense is evidence no hand-picked assertion can substitute for.
+- **A field with no corpus example at all still needs a test — write the
+  bytes by hand.** No vendored image has `planeCount > 1` or any
+  `planeOnOff`/`planeFilled` bit set, so "a plane marked filled expands
+  without being present in the data" (an explicit phase-7 Red requirement)
+  has no real file to assert against. Fix: hand-construct the header and
+  plane bytes directly in the test, matching phase 5's lesson about not
+  forcing corpus filenames to stand in for missing evidence — the synthetic
+  test is honestly labelled as spec-literal, not corpus-confirmed, and the
+  gap is recorded in `doc/format-notes.md` for the wild sweep to eventually
+  fill in.

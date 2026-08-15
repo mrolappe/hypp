@@ -10,6 +10,7 @@ class HypDocument(
     val entries: List<IndexEntry>,
     val charset: HypCharset,
     val nodes: List<Node>,
+    val images: List<ImageNode>,
     val diagnostics: List<Diagnostic>,
 ) {
     companion object {
@@ -89,25 +90,32 @@ class HypDocument(
                 }
             }
 
-            val entryNames = entries.map { it.name }
-            val nodes = entries.mapIndexedNotNull { i, e ->
-                if (e.type != IndexEntry.TYPE_INTERNAL && e.type != IndexEntry.TYPE_POPUP) return@mapIndexedNotNull null
-                // An object whose uncompressed size equals its compressed size is stored raw —
-                // the compiler skips lh5 when it wouldn't help. See doc/format-notes.md.
+            // An object whose uncompressed size equals its compressed size is stored raw —
+            // the compiler skips lh5 when it wouldn't help. See doc/format-notes.md.
+            fun decompress(e: IndexEntry, i: Int): ByteArray? {
                 val decompressed = if (e.uncompressedLength == e.compressedLength) {
                     bytes.copyOfRange(e.seek, e.seek + e.compressedLength)
                 } else {
                     Lh5.decompress(bytes, e.seek, e.compressedLength, e.uncompressedLength)
                 }
-                if (decompressed == null) {
-                    diagnostics += Diagnostic.DecompressionFailed(NodeIndex(i))
-                    return@mapIndexedNotNull null
-                }
+                if (decompressed == null) diagnostics += Diagnostic.DecompressionFailed(NodeIndex(i))
+                return decompressed
+            }
+
+            val entryNames = entries.map { it.name }
+            val nodes = entries.mapIndexedNotNull { i, e ->
+                if (e.type != IndexEntry.TYPE_INTERNAL && e.type != IndexEntry.TYPE_POPUP) return@mapIndexedNotNull null
+                val decompressed = decompress(e, i) ?: return@mapIndexedNotNull null
                 val kind = if (e.type == IndexEntry.TYPE_INTERNAL) NodeKind.TEXT else NodeKind.POPUP
                 parseNode(NodeIndex(i), e.name, kind, decompressed, diagnostics, charset, entryNames)
             }
+            val images = entries.mapIndexedNotNull { i, e ->
+                if (!e.isImage) return@mapIndexedNotNull null
+                val decompressed = decompress(e, i) ?: return@mapIndexedNotNull null
+                parseImage(NodeIndex(i), e.name, decompressed, diagnostics)
+            }
 
-            return OpenOutcome.Success(HypDocument(header, extendedHeaders, entries, charset, nodes, diagnostics))
+            return OpenOutcome.Success(HypDocument(header, extendedHeaders, entries, charset, nodes, images, diagnostics))
         }
     }
 }

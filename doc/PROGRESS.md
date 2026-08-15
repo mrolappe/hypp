@@ -11,7 +11,7 @@ of every round.
 | 4 | Charsets | green |
 | 5 | Node prologue | green |
 | 6 | Text and spans | green |
-| 7 | Images | not started |
+| 7 | Images | green |
 | 8 | Document API | not started |
 | 9 | JS façade | not started |
 | 10 | Parity artefacts | not started |
