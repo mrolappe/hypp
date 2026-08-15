@@ -279,3 +279,40 @@ lesson.
   test is honestly labelled as spec-literal, not corpus-confirmed, and the
   gap is recorded in `doc/format-notes.md` for the wild sweep to eventually
   fill in.
+
+## Phase 9
+
+- **Kotlin/Wasm's `@JsExport` (2.4.10) accepts only primitive, `String`, `external` and function
+  types — no arrays, no exported classes — for *both* parameters and return types.** The plan's
+  domain model and `HyppJs.kt`'s design were sketched before this was checked against the real
+  toolchain. A `ByteArray` parameter, an `IntArray`/`Array<String>` return, and a plain
+  `@JsExport`-annotated class each failed to compile with "Only external, primitive, string, and
+  function types are supported in Kotlin/Wasm JS interop" — the class case even more bluntly
+  ("This annotation is not applicable to target 'class'"). Fix: bytes go in as a base64 `String`
+  (`hyppOpen`), state lives behind an opaque `Int` handle into a module-level map (no exported
+  object to return one from), and "flattened arrays" become a `*Count` function plus indexed
+  getters — the same C-style flat-array idiom, just enforced by the platform rather than chosen by
+  taste. Lesson: the "verify against a real file" discipline every earlier phase applied to the
+  file format applies equally to a plan's *toolchain* assumptions — a spike that just tries to
+  compile the shape the plan describes, before committing to an API design, would have caught this
+  in one Gradle run instead of after the model was already sketched.
+- **`HypDocument.open` threw `IndexOutOfBoundsException` on input under 4 bytes, silently
+  violating the "total parse never fails" invariant the model has claimed since phase 1.** Every
+  corpus fixture is a well-formed file at least as long as the header, so nothing had ever called
+  `open()` with genuinely too-short input — until `HyppJsTest`'s failure-path test did, since the
+  JS façade is the first place arbitrary-length, caller-controlled bytes actually reach `open()`.
+  Fixed once in `HypDocument.open` itself (`bytes.size < 4` → `OpenFailure.InvalidMagic`, before
+  the first read), not at the `hyppOpen` call site — the same "fix it where all callers route
+  through" lesson as phase 6's `NodeIndex` throw, now surfacing at the container level instead of
+  node parsing. The rest of the container reader (index table, extended headers) has the same
+  unaudited-truncation shape and is not yet hardened; deferred to phase 11's wild sweep rather than
+  fixed speculatively here, since nothing has yet demonstrated it broken.
+- **Two Kotlin/Wasm library-distribution flavours (`development`/`production`) write the same
+  output directory, and Gradle's task-validation rejects running both without a declared
+  ordering.** A custom task depending on `wasmJsNodeDevelopmentLibraryDistribution` fails
+  `./gradlew build` once `assemble` also pulls in `compileProductionLibraryKotlinWasmJs` for
+  `wasmJsJar` — both write `build/wasm/packages/<module>/kotlin`. Fix: point the custom task at
+  the *production* distribution instead, reusing a task `build` already runs rather than adding a
+  second, conflicting one. Lesson: when adding a task that consumes a Kotlin/Wasm distribution
+  output, run `./gradlew build` (not just the new task in isolation) before considering it done —
+  the conflict only appears once both flavours are in the same task graph.

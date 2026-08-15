@@ -53,6 +53,9 @@ class HypDocument(
         private const val ENTRY_FIXED_SIZE = 14
 
         fun open(bytes: ByteArray): OpenOutcome {
+            // Too short to even hold the magic: reject before any read can run past the end,
+            // the boundary case an all-JS caller can trivially hit with arbitrary input.
+            if (bytes.size < 4) return OpenOutcome.Failure(OpenFailure.InvalidMagic)
             val reader = ByteReader(bytes)
             val magic = reader.readBytes(4).decodeToString()
             if (magic != MAGIC) return OpenOutcome.Failure(OpenFailure.InvalidMagic)
