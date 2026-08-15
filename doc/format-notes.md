@@ -37,6 +37,58 @@ the last entry) − this entry's seek`. When a sentinel is present, its `seek`
 already equals the file length, so the two cases produce the same result;
 the sentinel is just a redundant, optional way of stating it.
 
+## `-lh5-`'s window is 8 KiB, not 16 KiB — so there are 14 offset codes
+
+**Gap:** public secondary descriptions of LHA disagree about `-lh5-`'s sliding
+window size. HandWiki's LHA page says 16 KiB; the `lha(1)` manual page and the
+Entropymine format notes say 8 KiB (with 16/32/64 KiB belonging to `-lh6-` and
+`-lh7-`). The number is load-bearing: the offset Huffman tree has
+`windowBits + 1` symbols, whose count is transmitted in `PBIT` bits, so getting
+it wrong misparses every block header, not just long matches.
+
+**Resolution:** 8 KiB, i.e. 13 window bits, 14 offset codes, and a 4-bit count
+field for the offset code-length list.
+
+**Evidence:** with those values all 184 data-bearing nodes across
+`hcp_orig_en.hyp` (106) and `st-guide_orig_en.hyp` (78) decode to exactly the
+uncompressed length derived independently from the index table
+(`compressedLength + compDiff`, plus the `next` overload on the 17 image
+entries), consuming their compressed region without overrunning it. A wrong
+window size cannot survive even one block: the count field width shifts and the
+first tree fails to reconstruct.
+
+## A data-region object is a bare lh5 stream, with no per-object header
+
+**Gap:** the prose spec describes the data region as "lh5-compressed objects at
+each entry's seek offset" without saying whether an object begins with any
+length, checksum, or method tag of its own (an LHA *archive* would have a full
+file header there).
+
+**Resolution:** there is none. The bytes at `seek` are the raw `-lh5-` bit
+stream, and the object's uncompressed size comes only from the index entry
+(`compressedLength + compDiff`, plus `next << 16` for images).
+
+**Evidence:** decoding from byte 0 of the region yields a valid first block in
+every one of the 184 data-bearing nodes of the two real documents; for
+`textattr.hyp`'s "Main" node it yields exactly the 293 bytes the index entry
+predicts, and those bytes read as the document's German prose with the spec's
+`0x64`-based absolute attribute escapes in the expected places.
+
+## `blockSize == 0` is not reachable in practice; treated as malformed
+
+**Gap:** each lh5 block starts with a 16-bit symbol count, and the format gives
+no interpretation for zero. Implementations in the wild differ (no symbols /
+65536 symbols / end of data), which is documented publicly as a real
+incompatibility between LHA implementations.
+
+**Resolution:** treat it as a malformed stream and fail the decode. Reading it
+as "no symbols" makes the decoder loop forever on a truncated or corrupt input,
+which is the failure mode that actually matters for a hostile file.
+
+**Evidence:** no block in the vendored corpus has a zero size — every node in
+both real documents decodes fully — so nothing is lost by rejecting it. Revisit
+if the phase-11 wild sweep turns one up.
+
 **Evidence:** `hcp_orig_en.hyp`'s last two index entries (types 2, external
 reference) both have `seek == 57785` (the exact file size, `next`/`prev`/
 `toc` all zero) with no trailing type-255 entry after them; `itableCount`

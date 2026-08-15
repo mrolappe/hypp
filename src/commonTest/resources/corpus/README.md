@@ -9,6 +9,7 @@ corpus. hypview itself is GPL-2, but these `.hyp` files are third-party test
 | `empty.hyp` | `https://tho-otto.m68k.eu/hyp/tests/empty.hyp` | 76 B |
 | `textattr.hyp` | `https://tho-otto.m68k.eu/hyp/tests/textattr.hyp` | 229 B |
 | `hcp_orig_en.hyp` | `https://tho-otto.m68k.eu/hyp/hcp_orig_en.hyp` (fetched via local cache at `~/studio/kmp-hyp-ag-view/doc/hcp_orig_en.hyp`, same content) | 57785 B |
+| `st-guide_orig_en.hyp` | `https://tho-otto.m68k.eu/hyp/st-guide_orig_en.hyp` (fetched via local cache at `~/studio/kmp-hyp-ag-view/doc/st-guide_orig_en.hyp`, same content) | 51349 B |
 
 These files are checked in for provenance and for by-hand hex inspection.
 Tests do not read them from disk (multiplatform resource loading across

@@ -52,3 +52,46 @@ lesson.
   limit) sidesteps the problem entirely and works identically on all three
   targets. Real resource loading is still an open toolchain question for
   whenever a corpus file gets too large to embed this way.
+
+## Phase 3
+
+- **A test that asserts a size the implementation was *told* asserts
+  nothing.** lh5 has no end-of-stream marker: the decoder is given the
+  uncompressed size and stops when it has produced that many bytes. The
+  obvious implementation allocates `ByteArray(uncompressedSize)` up front —
+  at which point the plan's red test ("decompresses to exactly 293 bytes")
+  passes for *any* body, including an empty one. Fix: make failure
+  representable (`decompress` returns `ByteArray?` and yields null unless it
+  filled the buffer without reading past the end of the compressed region),
+  and add a test that halves the input and demands null. Lesson: before
+  writing an assertion, ask what the implementation would have to do to fail
+  it. If the answer is "nothing", the assertion is decoration — either
+  strengthen it or give the implementation a way to say no.
+- **A bit reader over a compressed region needs zero-fill *and* an overrun
+  flag.** Zero-fill past the end is required (encoders pad the last byte, and
+  a Huffman decode routinely peeks past the symbol it needs), but a reader
+  that only zero-fills lets a wrongly-parameterised decoder read an endless
+  stream of zero bits and produce plausible garbage instead of failing.
+  Tracking "did we cross the end" costs one boolean and turns silent nonsense
+  into a clean rejection. Lesson: lenient reads at a buffer boundary are fine
+  as long as the leniency is *recorded* somewhere the caller can check.
+- **Public secondary sources contradict each other on `-lh5-`'s window size**
+  (8 KiB vs 16 KiB — see `doc/format-notes.md`). The corpus settled it in
+  seconds, because a wrong window size changes the width of a count field in
+  every block header and so nothing decodes at all. Lesson: when independent
+  public descriptions of a format disagree, pick the reading that fails
+  *loudly* if wrong and let a real file arbitrate — don't spend the round
+  hunting for a more authoritative document.
+- **Restricting the integration sweep to entries that actually have data is a
+  spec decision, not a test convenience.** Types 2 and 4–8 have no object in
+  the data region, so their derived `compressedLength` is a meaningless
+  difference between two unrelated seek offsets. That rule belongs on the
+  domain type (`IndexEntry.hasData`), not as a filter written out longhand in
+  the test — otherwise every future consumer re-derives it and one of them
+  gets it wrong.
+- **Assert the *shape* of a corpus, not just "enough of it".** The first cut
+  of the sweep asserted `decompressed > 50`; replacing that with the exact
+  per-document counts (106 and 78, of which 2 and 15 are images) turned it
+  into a test that also pins the node-type breakdown — and the image counts
+  are the first end-to-end check of phase 2's `next`-overload size rule,
+  which until now nothing exercised.

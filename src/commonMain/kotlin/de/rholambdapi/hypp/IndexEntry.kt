@@ -19,6 +19,13 @@ data class IndexEntry(
     val isImage: Boolean get() = type == TYPE_IMAGE
 
     /**
+     * Whether this entry has a compressed object in the data region. Only internal,
+     * popup and image nodes do; types 2 and 4–8 exist purely as index entries, so
+     * their derived [compressedLength] is meaningless.
+     */
+    val hasData: Boolean get() = type == TYPE_INTERNAL || type == TYPE_POPUP || type == TYPE_IMAGE
+
+    /**
      * For image entries `next` is overloaded to hold the high bits of the
      * uncompressed size, rather than being a navigation link.
      */
