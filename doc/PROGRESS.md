@@ -6,7 +6,7 @@ of every round.
 | Phase | Name | State |
 |---|---|---|
 | 1 | Skeleton | green |
-| 2 | Container | not started |
+| 2 | Container | green |
 | 3 | lh5 decompression | not started |
 | 4 | Charsets | not started |
 | 5 | Node prologue | not started |
