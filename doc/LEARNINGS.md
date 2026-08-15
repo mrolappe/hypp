@@ -95,3 +95,31 @@ lesson.
   into a test that also pins the node-type breakdown — and the image counts
   are the first end-to-end check of phase 2's `next`-overload size rule,
   which until now nothing exercised.
+
+## Phase 4
+
+- **A field's *type constant* in `hyp.h` doesn't tell you the field's
+  on-disk *shape*.** The plan assumed extended header id 30 (`@charset`)
+  held a byte from `hyp.h`'s `HYP_CHARSET` enum. Hex-inspecting the corpus
+  showed it's actually a NUL-terminated descriptor string (`"atarist\0"`) —
+  the enum is hypview's post-parse internal value, not the file's encoding.
+  Lesson: even for the "constants only, in-bounds" parts of `hyp.h`, verify
+  against a real file before trusting the shape an identifier's name
+  suggests. See `doc/format-notes.md`.
+- **When the vendored corpus doesn't exercise every value a field can take,
+  say so and cite the fallback source rather than guessing.** No vendored
+  `.hyp` file uses a Latin-1 or UTF-8 `@charset`, so their exact alias
+  spellings (`"latin1"`, `"utf-8"`, ...) have no corpus evidence — they come
+  from the current UDO manual's charset descriptor table, which is public,
+  independent of hypview, and authoritative for what the compiler that
+  writes this field actually emits. Recorded as such in
+  `doc/format-notes.md` rather than silently presented as corpus-verified.
+- **A newly-appearing "Internal compiler error" on `wasmJs` after touching
+  unrelated code is worth a `clean` before debugging further.** Adding the
+  charset code triggered `NoSuchElementException: Key ... indexOf@... is
+  missing in the map` deep in `compileTestDevelopmentExecutableKotlinWasmJs`
+  — looked like a real regression, but `./gradlew clean` made it disappear;
+  it was a stale incremental-compilation cache, not a code issue. Lesson:
+  Kotlin/Wasm IC caches are fragile enough that a `clean` build should be
+  the first diagnostic step for a wasm-only compiler crash, before assuming
+  the new code is at fault.

@@ -14,4 +14,13 @@ sealed interface ExtendedHeader {
 
         override fun hashCode(): Int = 31 * id + data.contentHashCode()
     }
+
+    /** `@charset` — id 30, a NUL-terminated charset descriptor string (e.g. "atarist"). */
+    data class Charset(val name: String) : ExtendedHeader {
+        override val id: Int get() = ID
+
+        companion object {
+            const val ID = 30
+        }
+    }
 }

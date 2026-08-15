@@ -7,6 +7,8 @@ class HypDocument(
     val header: Header,
     val extendedHeaders: List<ExtendedHeader>,
     val entries: List<IndexEntry>,
+    val charset: HypCharset,
+    val diagnostics: List<Diagnostic>,
 ) {
     companion object {
         private const val MAGIC = "HDOC"
@@ -67,10 +69,25 @@ class HypDocument(
                 val id = reader.readU16()
                 val length = reader.readU16()
                 if (id == 0) break
-                extendedHeaders += ExtendedHeader.Unknown(id, reader.readBytes(length))
+                val data = reader.readBytes(length)
+                extendedHeaders += if (id == ExtendedHeader.Charset.ID) {
+                    ExtendedHeader.Charset(data.decodeName())
+                } else {
+                    ExtendedHeader.Unknown(id, data)
+                }
             }
 
-            return OpenOutcome.Success(HypDocument(header, extendedHeaders, entries))
+            val diagnostics = ArrayList<Diagnostic>()
+            val charsetName = extendedHeaders.filterIsInstance<ExtendedHeader.Charset>().firstOrNull()?.name
+            val charset = when {
+                charsetName == null -> HypCharset.Default
+                else -> HypCharset.byName(charsetName) ?: run {
+                    diagnostics += Diagnostic.UnsupportedCharset(charsetName)
+                    HypCharset.Default
+                }
+            }
+
+            return OpenOutcome.Success(HypDocument(header, extendedHeaders, entries, charset, diagnostics))
         }
     }
 }

@@ -8,7 +8,7 @@ of every round.
 | 1 | Skeleton | green |
 | 2 | Container | green |
 | 3 | lh5 decompression | green |
-| 4 | Charsets | not started |
+| 4 | Charsets | green |
 | 5 | Node prologue | not started |
 | 6 | Text and spans | not started |
 | 7 | Images | not started |

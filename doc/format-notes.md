@@ -93,3 +93,29 @@ if the phase-11 wild sweep turns one up.
 reference) both have `seek == 57785` (the exact file size, `next`/`prev`/
 `toc` all zero) with no trailing type-255 entry after them; `itableCount`
 (124) already accounts for all of them, no more, no less.
+
+## Extended header id 30 (`@charset`) is a name string, not `hyp.h`'s numeric enum
+
+**Gap:** `hyp.h` (in-bounds as constants only) defines `HYP_EXTH_CHARSET = 30`
+and a `HYP_CHARSET` enum (`HYP_CHARSET_ATARI = 2`, `HYP_CHARSET_LATIN1 = 14`,
+etc.). Nothing in the prose spec (`hypfmt.ui`, which only documents ids 0–11)
+says what shape id 30's payload takes, and the enum invites reading it as a
+one-byte numeric id.
+
+**Resolution:** the payload is a NUL-terminated C-string charset descriptor —
+the same string UDO's `@charset` source command takes literally (e.g.
+`@charset atarist`) — not a byte from the `HYP_CHARSET` enum. `hyp.h`'s enum
+is hypview's internal representation *after* it parses this string; it says
+nothing about the file's on-disk encoding.
+
+**Evidence:** `textattr.hyp` and `empty.hyp` both carry an id-30 extended
+header with `length = 8` and payload bytes `61 74 61 72 69 73 74 00` —
+`"atarist\0"` — matching `@charset atarist` in hypview's own UDO source
+(`doc/en/header.ui`, `doc/en/orig/1st_conv.stg`). No corpus file (including
+`hcp_orig_en.hyp` / `st-guide_orig_en.hyp`, which have no id-30 header at
+all) contains a single numeric byte at this id. Alias spellings for the
+other two v1 charsets (Latin-1, UTF-8) aren't evidenced in any vendored
+corpus file, so those come from the current UDO manual's charset descriptor
+table (`man.udo-open-source.org/en/spec_converting_8bit_characters.htm`) —
+public documentation of the compiler that writes this field, independent of
+hypview and predating it.

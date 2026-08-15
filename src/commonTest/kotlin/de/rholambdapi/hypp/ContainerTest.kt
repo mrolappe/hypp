@@ -43,6 +43,42 @@ class ContainerTest {
     }
 
     @Test
+    fun charsetHeaderIsResolved() {
+        val outcome = HypDocument.open(TestCorpus.empty)
+        val doc = assertIs<OpenOutcome.Success>(outcome).document
+
+        assertEquals(HypCharset.AtariSt, doc.charset)
+        assertTrue(doc.diagnostics.isEmpty())
+    }
+
+    @Test
+    fun missingCharsetHeaderDefaultsToAtariSt() {
+        val outcome = HypDocument.open(TestCorpus.hcpOrigEn)
+        val doc = assertIs<OpenOutcome.Success>(outcome).document
+
+        assertEquals(HypCharset.AtariSt, doc.charset)
+        assertTrue(doc.diagnostics.isEmpty())
+    }
+
+    @Test
+    fun unsupportedCharsetNameFallsBackAndRecordsDiagnostic() {
+        // empty.hyp's extended header id=30 payload is "atarist" + NUL (8
+        // bytes) at byte offset 30 — replace it in place with another
+        // 8-byte, NUL-terminated name so the rest of the file's offsets
+        // don't move. Built as a byte array (not a string literal) so the
+        // NUL terminator doesn't end up as a literal byte in this source file.
+        val bytes = TestCorpus.empty.copyOf()
+        val name = "bogus".map { it.code.toByte() }.toByteArray() + ByteArray(3)
+        name.copyInto(bytes, destinationOffset = 30)
+
+        val outcome = HypDocument.open(bytes)
+        val doc = assertIs<OpenOutcome.Success>(outcome).document
+
+        assertEquals(HypCharset.AtariSt, doc.charset, "falls back to the default rather than failing the open")
+        assertEquals(listOf(Diagnostic.UnsupportedCharset("bogus")), doc.diagnostics)
+    }
+
+    @Test
     fun realDocumentEveryEntryInBounds() {
         val bytes = TestCorpus.hcpOrigEn
         val outcome = HypDocument.open(bytes)
