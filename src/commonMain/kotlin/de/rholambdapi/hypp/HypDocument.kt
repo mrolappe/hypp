@@ -1,6 +1,7 @@
 package de.rholambdapi.hypp
 
 import de.rholambdapi.hypp.internal.ByteReader
+import de.rholambdapi.hypp.internal.Lh5
 import de.rholambdapi.hypp.internal.decodeName
 
 class HypDocument(
@@ -8,6 +9,7 @@ class HypDocument(
     val extendedHeaders: List<ExtendedHeader>,
     val entries: List<IndexEntry>,
     val charset: HypCharset,
+    val nodes: List<Node>,
     val diagnostics: List<Diagnostic>,
 ) {
     companion object {
@@ -87,7 +89,18 @@ class HypDocument(
                 }
             }
 
-            return OpenOutcome.Success(HypDocument(header, extendedHeaders, entries, charset, diagnostics))
+            val nodes = entries.mapIndexedNotNull { i, e ->
+                if (e.type != IndexEntry.TYPE_INTERNAL && e.type != IndexEntry.TYPE_POPUP) return@mapIndexedNotNull null
+                val decompressed = Lh5.decompress(bytes, e.seek, e.compressedLength, e.uncompressedLength)
+                if (decompressed == null) {
+                    diagnostics += Diagnostic.DecompressionFailed(NodeIndex(i))
+                    return@mapIndexedNotNull null
+                }
+                val kind = if (e.type == IndexEntry.TYPE_INTERNAL) NodeKind.TEXT else NodeKind.POPUP
+                parseNode(NodeIndex(i), e.name, kind, decompressed, diagnostics)
+            }
+
+            return OpenOutcome.Success(HypDocument(header, extendedHeaders, entries, charset, nodes, diagnostics))
         }
     }
 }

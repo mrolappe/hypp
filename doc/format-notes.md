@@ -119,3 +119,99 @@ corpus file, so those come from the current UDO manual's charset descriptor
 table (`man.udo-open-source.org/en/spec_converting_8bit_characters.htm`) —
 public documentation of the compiler that writes this field, independent of
 hypview and predating it.
+
+## Node prologue records (a-e) are not emitted in a fixed order
+
+**Gap:** `hypfmt.ui`'s "Format of a text object" section enumerates the
+prologue as `a) graphics`, `b) cross-references`, `c) further data blocks`,
+`d) window title`, `e) object table`, then `f) text` — reading as a fixed
+sequence.
+
+**Resolution:** each record is self-identifying (`ESC` + a type byte in
+`0x23, 0x28-0x35`), and a real file interleaves them freely. Parse the
+prologue as a loop that dispatches on the type byte and stops at the first
+`ESC` whose type falls outside that set (or at a non-`ESC` byte) — that byte
+starts the text region. This is safe because the text region's own escapes
+(`0x24-0x27` link/alink, `0x64-0xa6` attributes/colour) use a disjoint range
+from the prologue's, so there's no ambiguity about where one ends and the
+other begins.
+
+**Evidence:** `hcp_orig_en.hyp` node 0 ("Main") emits its window title
+(`0x23`) first, then one image (`0x32`) and nine box-drawing lines (`0x33`),
+then three cross-references (`0x30`) — title before graphics before
+cross-references, none of which matches the prose spec's a-b-c-d-e reading
+order.
+
+## Window title has no alignment padding in practice
+
+**Gap:** `hypfmt.ui` says a window title (`0x23`) is "NUL-terminated" plus a
+"possible fill-byte so that the text starts at an even address" — worded
+conditionally, without saying when the fill byte applies.
+
+**Resolution:** no padding byte is ever present. Read the title as a
+NUL-terminated string and continue immediately after the NUL, regardless of
+whether that position is odd or even.
+
+**Evidence:** across 29 window titles in `hcp_orig_en.hyp` and
+`st-guide_orig_en.hyp`, the byte immediately after title `n`'s NUL is the
+next prologue record's `ESC` (`0x1b`) in every case — including titles
+whose length makes that position odd — with no extra byte ever inserted.
+(A handful of popup nodes have `0x00` immediately after the title, but that
+is the node's first text line being empty, not padding: those nodes have no
+further prologue records, and the `0x00` is the first byte of item f.)
+
+## Base-255 field encoding, and its byte order
+
+**Gap:** `hypfmt.ui` repeatedly says a 2-byte field is "present to a base of
+255 and a value of 1 is added to both bytes" (to avoid NUL bytes in node
+data) without spelling out the arithmetic or which byte is the more
+significant one.
+
+**Resolution:** for stream bytes `lo, hi` (in that order — the less
+significant digit comes first), the decoded value is
+`(hi - 1) * 255 + (lo - 1)`. Applies uniformly to every base-255 field this
+phase touches: image index, graphic Y-offset, cross-reference target index,
+and all four object-table fields.
+
+**Evidence:** `image.hyp`'s single image entry sits at index 1 in the file's
+index table; its three placements all decode `imageIndex` bytes `02 01` to
+`1` under this formula. `limage2.hyp` has two image entries (indices 1 and
+2); its four placements decode to `1, 2, 1, 2` in file order, matching
+`select_box.img`, `title.img`, `select_box.img`, `title.img` by name.
+Y-offsets across all four graphics fixtures decode to values consistent
+with the fixtures' own visual intent (e.g. `limage.hyp`'s three
+line-height images land at `y = 1, 2, 3`, one per line).
+
+## Dithermask (`0x2f`) and object table (`0x31`) are unevidenced in the vendored corpus
+
+**Gap:** the prose spec documents both, and `hyp.h` separately calls the
+dithermask escape "undocumented". Neither appears anywhere in the four
+graphics micro-corpus files or in either full real document
+(`hcp_orig_en.hyp`, `st-guide_orig_en.hyp`).
+
+**Resolution:** implemented from the prose spec only — a dithermask
+immediately preceding an image escape attaches to that `Graphic.Image`; one
+that isn't followed by an image (or is itself superseded by a second
+dithermask before an image claims it) surfaces as an ordinary `DataBlock`.
+Object-table entries are fixed 10-byte records (no length field, unlike the
+cross-reference and generic data-block records) per the prose spec's field
+list. Both are covered only by hand-constructed unit tests, not corpus
+fixtures — revisit if the phase-11 wild sweep turns up a real example.
+
+## Line/box/rbox `Data` byte: bit0/bit1/rest decomposition doesn't match `lines.hyp`'s filename labels
+
+**Gap:** the prose spec says a line's data byte is bit0 = arrow at start,
+bit1 = arrow at end, remaining bits = line style. `lines.hyp`'s ten line
+placements are named for what they're meant to show (`"...arrow end"`,
+`"...arrow start"`, `"...both arrows"`, plain, diagonal), which looked like
+a chance to cross-check the bit assignment against real data.
+
+**Resolution:** decomposed the data byte exactly as the prose spec states,
+without trying to force the result to match the filename labels — the two
+don't line up cleanly (e.g. both "arrow end" placements and both diagonal
+placements decode to the same flags, `arrowAtStart = arrowAtEnd = true`,
+while "both arrows" decodes to neither flag set). Rather than guess at a
+reinterpretation with no oracle to check it against, `NodeTest` asserts the
+literal decoded values only, with a comment noting the label mismatch is
+unresolved. No visual rendering oracle exists to settle this; revisit if
+the phase-11 wild sweep or a rendering cross-check ever provides one.

@@ -123,3 +123,57 @@ lesson.
   Kotlin/Wasm IC caches are fragile enough that a `clean` build should be
   the first diagnostic step for a wasm-only compiler crash, before assuming
   the new code is at fault.
+
+## Phase 5
+
+- **`@JvmInline` needs an explicit `import kotlin.jvm.JvmInline` (or the
+  fully-qualified name) in `commonMain` — it compiles without one on `jvm`
+  but fails on `wasmJs`/`wasmWasi` with "Unresolved reference".** The JVM
+  target's Kotlin compiler carries extra default imports (`kotlin.jvm.*`)
+  that the other targets don't. `NodeIndex.kt` passed `compileKotlinJvm`
+  silently and only broke at `compileKotlinWasmJs`. Lesson: a bare
+  `@JvmInline` (or anything else from `kotlin.jvm`) in `commonMain` needs
+  its import written out explicitly — don't trust a JVM-only compile to
+  prove common code is target-clean; run (or at least compile) all three
+  targets before considering a round done, not just `jvmTest`.
+- **A prose spec's item-by-item enumeration order ("a) ... b) ... c) ...")
+  is not necessarily wire order.** `hypfmt.ui` lists a text node's prologue
+  as graphics, then cross-references, then data blocks, then window title,
+  then object table — but `hcp_orig_en.hyp`'s first node emits its window
+  title before its graphics. The fix (parse prologue records as an
+  unordered, self-identifying set, stopping at the first byte that isn't a
+  recognized prologue escape) turned out to be more robust anyway. Lesson:
+  when a format's records are individually self-identifying (each carries
+  its own type tag), don't assume a spec's listing order is a parsing
+  order — check a real file before hand-deriving field offsets from
+  enumeration position, the same lesson as phase 2/4's "verify against a
+  real file" but for structural order rather than field shape or byte
+  encoding.
+- **When a prose spec describes a byte-avoidance encoding scheme without
+  giving the arithmetic, work it out from the scheme's stated purpose
+  before reaching for the GPL-licensed reference implementation.**
+  `hypfmt.ui` says base-255 fields are "present to a base of 255 and a
+  value of 1 is added to both bytes" — enough to derive
+  `(hi - 1) * 255 + (lo - 1)` directly (a two-digit base-255 number, each
+  digit biased +1 to avoid a zero byte) without opening `hyp.h`'s
+  `dec_from_chars` at all. Corpus values (image indices, cross-reference
+  targets) confirmed it first try. Lesson: a prose spec's plain-English
+  description of *why* an encoding exists is often enough to derive the
+  arithmetic clean-room; reach for the constants-only reference file only
+  when the prose is silent, not as the first move.
+- **Don't force a real corpus's descriptive filenames to validate a bit
+  layout the file itself doesn't actually let you check.** `lines.hyp`
+  names its ten line placements after what they're supposed to visually
+  show ("arrow end", "arrow start", "both arrows", ...), which looks like
+  free validation for the prose spec's bit0/bit1/rest decomposition of the
+  line-graphic data byte — but the decoded flags don't line up with the
+  labels (both "arrow end" entries and both diagonal entries decode
+  identically; "both arrows" decodes to no arrow flags at all). There's no
+  rendering oracle to arbitrate, so the right move was to implement the
+  spec's stated bit layout literally, assert the literal decoded values,
+  and record the mismatch rather than reverse-engineer a reinterpretation
+  to make the labels fit. Lesson: a corpus filename is a hint, not
+  evidence — only trust a real file's *bytes* as evidence, never a
+  human-chosen name attached to them, unless there's an independent way
+  (a working renderer, a second independent spec) to confirm the human's
+  intent actually matches the encoding.
