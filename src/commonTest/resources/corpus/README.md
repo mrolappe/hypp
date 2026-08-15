@@ -8,6 +8,8 @@ corpus. hypview itself is GPL-2, but these `.hyp` files are third-party test
 |---|---|---|
 | `empty.hyp` | `https://tho-otto.m68k.eu/hyp/tests/empty.hyp` | 76 B |
 | `textattr.hyp` | `https://tho-otto.m68k.eu/hyp/tests/textattr.hyp` | 229 B |
+| `colors.hyp` | `https://tho-otto.m68k.eu/hyp/tests/colors.hyp` | 249 B |
+| `linkattr.hyp` | `https://tho-otto.m68k.eu/hyp/tests/linkattr.hyp` | 502 B |
 | `image.hyp` | `https://tho-otto.m68k.eu/hyp/tests/image.hyp` | 1655 B |
 | `limage.hyp` | `https://tho-otto.m68k.eu/hyp/tests/limage.hyp` | 1649 B |
 | `limage2.hyp` | `https://tho-otto.m68k.eu/hyp/tests/limage2.hyp` | 380 B |

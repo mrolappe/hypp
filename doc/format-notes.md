@@ -198,6 +198,72 @@ cross-reference and generic data-block records) per the prose spec's field
 list. Both are covered only by hand-constructed unit tests, not corpus
 fixtures — revisit if the phase-11 wild sweep turns up a real example.
 
+## Colour escapes `0xa5`/`0xa6` take one *raw* palette-index byte — so a line split on NUL alone is wrong
+
+**Gap:** neither source describes the on-wire parameter of the foreground /
+background colour escapes. `hypfmt.ui`'s item-f enumeration stops at type 164
+(`0xa4`) and never mentions colour at all; `hyp.h` stops enumerating escapes at
+`HYP_ESC_BG_COLOR 0xa6` with no parameter description. So the parameter's width
+(one byte? two?) and encoding (raw 0-15 index, or base-255-biased like every
+other multi-byte inline value) were both unstated. The question matters because
+`HYP_COLOR_WHITE` is 0: a raw index 0 puts a literal NUL byte inside a line,
+which the format elsewhere goes out of its way to avoid.
+
+**Resolution:** exactly **one byte**, holding the **raw** palette index 0-15 —
+*not* base-255 biased, and *not* NUL-avoiding. Colour index 0 (white) therefore
+does appear as a `0x00` byte in the middle of a line. The consequence for
+parsing: **line splitting must be escape-aware.** A parser that splits the text
+region on NUL first and interprets escapes second breaks every line that selects
+white, and every escape parameter that follows. Consume the escape and its
+parameter, *then* test the next byte for the line terminator.
+
+**Evidence:** `colors.hyp` exists to exercise exactly this. Splitting its 422
+decompressed text bytes on NUL yields 19 "lines", of which the first three are
+`hello ␛\xa5`, `␛\xa6\x01white world␛\xa6` and `␛\xa5\x01` — three fragments
+whose escapes are each cut off mid-parameter. Reading each `0xa5`/`0xa6` as
+"escape + one raw index byte" splices them into one coherent line,
+`hello ` + fg=white(0) bg=black(1) + `white world` + bg=white(0) fg=black(1),
+and turns the whole node into 17 lines whose text is `hello <name> world` for
+each of the 16 palette entries in index order (`white, black, red, green, blue,
+cyan, yellow, magenta, light gray, dark gray, dark red, dark green, dark blue,
+dark cyan, dark yellow, dark magenta`) plus a trailing empty line — the fixture's
+own words naming the colour its escape selects, entry for entry, with
+`hyp.h`'s `HYP_COLOR_*` numbering. Under any other reading (two-byte parameter,
+or `(hi-1)*255 + (lo-1)`) the names and the indices stop lining up at the first
+line. The white-on-black first line and the `hello black world` second line also
+confirm `HYP_DEFAULT_FG = BLACK` / `HYP_DEFAULT_BG = WHITE`: the fixture writes
+no escape at all for black-on-white.
+
+**Not a resolution of the `0xa4` typewriter overlap.** `hyp.h` comments that
+typewriter (`0xa4`) "actually uses range 0xa4-0xe3", which would swallow
+`0xa5`/`0xa6`. This phase implements `0xa4` as the prose spec's documented
+one-byte no-visual-effect escape and `0xa5`/`0xa6` as fg/bg colour per `hyp.h`,
+which is consistent with every vendored fixture (`colors.hyp` uses `0xa5`/`0xa6`
+as colour; no vendored file uses `0xa4` at all). The full overlap stays deferred
+to the phase-11 wild sweep, as planned.
+
+## An object whose `compDiff` is 0 is stored uncompressed, not lh5-compressed
+
+**Gap:** the prose spec describes the data region as "lh5-compressed objects at
+each entry's seek offset" with no mention of a stored/uncompressed alternative,
+and there is no per-object header to signal one (see the entry above).
+
+**Resolution:** when an entry's derived uncompressed length equals its
+compressed length — equivalently, when `compDiff == 0` — the bytes at `seek`
+are the object's contents verbatim. The compiler skips lh5 when compressing
+would not pay for itself. Feed them straight to the node parser; running the
+lh5 decoder over them fails.
+
+**Evidence:** `linkattr.hyp`'s entries 1, 2 and 3 ("Page 1", "Page 2", "popup")
+each have `compDiff = 0` and a derived `compressedLength` of 17, and the 17
+bytes at each `seek` read literally as `Dies ist Seite 1\0`,
+`Dies ist Seite 2\0` and `This is a popup.\0` — the nodes' own plain text, with
+no bit-stream framing of any kind. Before this rule, all three produced
+`DecompressionFailed` diagnostics and no `Node`; with it, `linkattr.hyp` opens
+with zero diagnostics. No entry in `hcp_orig_en.hyp` or `st-guide_orig_en.hyp`
+has `compDiff == 0`, which is why phase 3's sweep over those two documents never
+surfaced the case.
+
 ## Line/box/rbox `Data` byte: bit0/bit1/rest decomposition doesn't match `lines.hyp`'s filename labels
 
 **Gap:** the prose spec says a line's data byte is bit0 = arrow at start,

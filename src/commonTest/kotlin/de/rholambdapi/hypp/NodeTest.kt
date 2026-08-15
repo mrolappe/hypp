@@ -123,7 +123,8 @@ class NodeTest {
 
         // The prologue ends where the first text-region escape (0x24, link) begins, not at a
         // fixed a-e boundary — this node's title precedes its graphics on the wire.
-        assertEquals(listOf(0x20, 0x20, 0x20, 0x20, 0x20, 0x1b), main.textBytes.take(6).map { it.toInt() and 0xFF })
+        assertEquals("     ", main.lines.first().spans.first().text)
+        assertEquals(NodeIndex(4), main.lines.first().spans[1].link?.target)
     }
 
     @Test

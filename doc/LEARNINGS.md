@@ -177,3 +177,68 @@ lesson.
   human-chosen name attached to them, unless there's an independent way
   (a working renderer, a second independent spec) to confirm the human's
   intent actually matches the encoding.
+
+## Phase 6
+
+- **A format's "no NUL bytes anywhere" invariant can have exceptions, and the
+  exception is where the parser breaks.** Every multi-byte inline value in
+  node data is base-255 with +1 on both bytes *specifically* so no NUL
+  appears — which makes "split the text region on NUL, then interpret the
+  escapes inside each line" look obviously safe. It isn't: the `0xa5`/`0xa6`
+  colour escapes carry a **raw** palette index, and index 0 (white) is a
+  literal `0x00`. `colors.hyp`'s first three NUL-delimited fragments are each
+  a mid-parameter cut. Fix: consume every escape *and its parameter* before
+  testing the next byte for the terminator. Lesson: when a format states an
+  invariant like "no NUL bytes", check whether *every* field actually obeys
+  it before building a two-pass parser on top of it — a single field that
+  doesn't makes the cheap pass silently wrong, and it will be the one field
+  the spec forgot to document.
+- **Derive an undocumented encoding from a fixture whose *content* names its
+  own expected values.** Neither `hypfmt.ui` nor `hyp.h` says anything about
+  the colour escapes' parameter. `colors.hyp` settles it in one read because
+  each line's text is the name of the colour that line's escape selects
+  (`hello dark cyan world` next to index 13) — sixteen independent
+  confirmations of both the parameter width and the index numbering, from
+  data alone. Lesson: when a corpus file exists purely to exercise one
+  feature, look at what its text *says* before reaching for more spec —
+  a self-describing fixture is a stronger oracle than prose, and unlike
+  `lines.hyp`'s filenames (phase 5) the evidence is in the bytes being
+  parsed, not in a human-chosen name attached to them.
+- **An entry with `compDiff == 0` is stored uncompressed — and only a fixture
+  outside the two big documents showed it.** `linkattr.hyp`'s three short
+  nodes hold their text verbatim at `seek`, with no lh5 framing; phase 3's
+  sweep over `hcp_orig_en.hyp` and `st-guide_orig_en.hyp` never saw the case
+  because neither document contains one. They surfaced as three
+  `DecompressionFailed` diagnostics that were easy to read as "phase 3 has a
+  bug" or to ignore as noise. Lesson: treat a diagnostic that only some
+  fixtures produce as a finding to chase, not as an accepted cost — and don't
+  read "the two real documents pass" as proof a rule generalises, which is
+  phase 2's lesson pointing the other way (a big real file caught what the
+  micro-corpus missed; here the micro-corpus caught what the big files
+  missed). Both directions are needed.
+- **A total parser can still throw, via a `require` in a value class.**
+  `NodeIndex`'s `require(value >= 0)` turns any malformed base-255 field into
+  an exception, defeating the "total parse + typed diagnostics" decision at
+  three call sites (link target, cross-reference target, image index). Fixed
+  once, in a shared local helper that returns `NodeIndex?` and records
+  `DanglingNodeReference`, rather than at the one call site this phase added.
+  Lesson: making illegal states unrepresentable puts a throw at every
+  construction site — audit those sites whenever the constructor sits on a
+  path fed by untrusted bytes.
+- **When a parser bails out of one region, make sure it doesn't reinterpret
+  the same bytes as the next region.** Phase 5's prologue recorded
+  `NodeDataOverrun` and stopped, leaving `pos` where the truncated record
+  began — harmless while the remainder was an opaque `textBytes`, but as soon
+  as phase 6 started parsing that remainder, one malformed prologue byte
+  produced a cascade of bogus `UnknownEscape` and `UnterminatedLine`
+  diagnostics. Fix: advance to the end of the data on that path. Lesson: an
+  error exit needs to leave the cursor somewhere the *next* stage can safely
+  start from, not merely stop the current one — and an existing test that
+  asserts an exact diagnostic list is what catches it.
+- **Write an accented or control character into a test as a `\uXXXX` escape,
+  not as the literal character.** Two assertions in this round's tests ended
+  up holding a raw `0x1b` byte and a raw high-Latin byte in the Kotlin
+  source, which then defeated exact-string edits (the tooling can't match
+  what it can't see) and would have been invisible in review. Lesson: any
+  test asserting a decoded character belongs in escape form in the source —
+  it is the only form that survives a diff, an editor and a grep unchanged.

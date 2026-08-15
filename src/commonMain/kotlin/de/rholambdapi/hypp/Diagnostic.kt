@@ -16,4 +16,16 @@ sealed interface Diagnostic {
 
     /** A node carried more than the spec's documented maximum of 12 cross-reference blocks. */
     data class CrossReferenceLimitExceeded(val index: NodeIndex, val count: Int) : Diagnostic
+
+    /** An `ESC` in a node's text region followed by a type byte the format doesn't define; skipped. */
+    data class UnknownEscape(val index: NodeIndex, val code: Int) : Diagnostic
+
+    /** A node's data ended mid-line, without the line's terminating NUL; the partial line is kept. */
+    data class UnterminatedLine(val index: NodeIndex) : Diagnostic
+
+    /**
+     * A link, cross-reference or image placement named an index that isn't in the document's
+     * index table. The reference is dropped; whatever text it carried is kept.
+     */
+    data class DanglingNodeReference(val index: NodeIndex, val target: Int) : Diagnostic
 }
