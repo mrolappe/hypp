@@ -359,3 +359,34 @@ lesson.
   gathering wild-corpus evidence for a format ambiguity, print the *distribution shape*, not just
   a total count — a parameterless code and a parameterised one are told apart by how spread out the
   "next byte" values are, not by how often the code appears.
+
+## Post-plan follow-up: includeBuild integration check
+
+- **A KMP composite build needs an explicit `dependencySubstitution` for each published target
+  artifact — automatic substitution doesn't reach it.** `includeBuild("hypp-lib")` alone leaves a
+  consumer's `implementation("de.rholambdapi:hypp-jvm:0.1.0-SNAPSHOT")` unresolved
+  (`Could not find de.rholambdapi:hypp-jvm:0.1.0-SNAPSHOT`) even though the included build's
+  `group`/`version` match exactly. Gradle's automatic substitution matches on the included
+  project's own `group:name` (here `de.rholambdapi:hypp`, the root project name) — it doesn't know
+  about the per-target Maven coordinates (`hypp-jvm`, `hypp-wasm-js`, …) that `maven-publish`
+  derives from KMP's target names. The fix is one line in the consumer's `settings.gradle.kts`:
+  `includeBuild("hypp-lib") { dependencySubstitution { substitute(module("de.rholambdapi:hypp-jvm")).using(project(":")) } }`.
+  Confirmed working: a throwaway consumer (git submodule + this substitution) resolves, compiles
+  against, and runs `HypDocument.open()` from the composite build. Lesson: document this rule
+  wherever hypp's distribution instructions live (README/consumer docs) — a consumer copying only
+  "submodule + `includeBuild`" from the plan's locked decision, without the substitution rule, will
+  hit this and may wrongly suspect the publish step itself is broken.
+
+## Post-plan follow-up: unknown escapes by file
+
+- **A histogram over codes can hide that the *documents* are the real skew, not the codes.**
+  Phase 11's original sweep reported 51,778 `UnknownEscape` occurrences spread over ~60 distinct
+  codes and concluded they were merely "concentrated in a subset of files" without naming which.
+  Extending `CorpusSweep.kt` to tally occurrences per `(code, filename)` pair instead of per code
+  alone showed the true shape: three files (`chips_x.hyp`, `chips50d.hyp`, `206stb12.hyp`) account
+  for 51,777 of the 51,778 occurrences, and share nearly the same dominant codes — one file
+  (`msgcheck.hyp`) has exactly one. Every other one of the 702 corpus files has zero. Lesson: when
+  a diagnostic count looks "spread across many codes," check whether it's actually spread across
+  many *documents* too, or concentrated in a near-single source — the two have very different
+  implications for whether modeling the gap is worth it (three real documents to build a feature
+  against, here, not sixty independent anomalies each needing separate investigation).

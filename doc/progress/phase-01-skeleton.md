@@ -33,7 +33,13 @@
 
 ## Remaining
 
-- The "1, revisited" integration test (a throwaway consumer project
-  resolving the published artifact) is deferred to whichever later round
-  the plan schedules it — `publishToMavenLocal` succeeding is a good sign
-  but is not the same test.
+- ~~The "1, revisited" integration test~~ — done post-plan (2026-08-15): a
+  throwaway consumer project (git submodule of `github.com/mrolappe/hypp` +
+  Gradle `includeBuild`) resolves `de.rholambdapi:hypp-jvm:0.1.0-SNAPSHOT`
+  and successfully runs `HypDocument.open()` against a real corpus fixture.
+  Required one thing not in the plan's original one-line "submodule +
+  includeBuild" decision: an explicit `dependencySubstitution` mapping the
+  published per-target coordinate to the included build's root project —
+  see `doc/LEARNINGS.md` § "Post-plan follow-up: includeBuild integration
+  check" for the exact rule and why automatic substitution doesn't reach
+  it.

@@ -48,6 +48,10 @@ fun main(args: Array<String>) {
     val extendedHeaderIdCounts = sortedMapOf<Int, Int>()
     val diagnosticCounts = sortedMapOf<String, Int>()
     val unknownEscapeCodeCounts = sortedMapOf<Int, Int>()
+    // Which documents each UnknownEscape code actually occurs in — phase 11 tallied codes only,
+    // not files; a future phase deciding whether to model these escapes needs real examples.
+    val unknownEscapeFilesByCode = sortedMapOf<Int, MutableMap<String, Int>>()
+    val unknownEscapeTotalsByFile = sortedMapOf<String, Int>()
 
     // Targeted evidence for the 0xa4 ambiguity (doc/format-notes.md): every ESC(0x1b) 0xa4 pair
     // found in any decompressed node/popup/image object, and what byte follows it.
@@ -86,7 +90,11 @@ fun main(args: Array<String>) {
                     doc.extendedHeaders.forEach { extendedHeaderIdCounts.merge(it.id, 1, Int::plus) }
                     doc.diagnostics.forEach { d ->
                         diagnosticCounts.merge(d::class.simpleName ?: "?", 1, Int::plus)
-                        if (d is Diagnostic.UnknownEscape) unknownEscapeCodeCounts.merge(d.code, 1, Int::plus)
+                        if (d is Diagnostic.UnknownEscape) {
+                            unknownEscapeCodeCounts.merge(d.code, 1, Int::plus)
+                            unknownEscapeFilesByCode.getOrPut(d.code) { sortedMapOf() }.merge(name, 1, Int::plus)
+                            unknownEscapeTotalsByFile.merge(name, 1, Int::plus)
+                        }
                     }
 
                     // Restricted to text/popup entries: image raster data coincidentally contains the
@@ -138,6 +146,13 @@ fun main(args: Array<String>) {
     println()
     println("diagnostic counts: $diagnosticCounts")
     println("UnknownEscape code counts (hex would read: ${unknownEscapeCodeCounts.keys.map { "0x${it.toString(16)}" }}): $unknownEscapeCodeCounts")
+    println()
+    println("UnknownEscape files by code (code -> {file: occurrence count}):")
+    unknownEscapeFilesByCode.forEach { (code, files) ->
+        println("  0x${code.toString(16)}: $files")
+    }
+    println("UnknownEscape totals by file, most-affected first: " +
+        unknownEscapeTotalsByFile.entries.sortedByDescending { it.value })
     println()
     println("ESC 0xa4 occurrences: $esc0xa4Occurrences")
     println("ESC 0xa4 following-byte histogram: $esc0xa4FollowingByteCounts")

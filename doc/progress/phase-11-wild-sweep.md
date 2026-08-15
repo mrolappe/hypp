@@ -90,6 +90,23 @@ two large hand-picked documents.
   future phase if a consumer needs those documents to render without
   unknown-escape noise.
 
+  **Post-plan follow-up (2026-08-15): named the files.** `CorpusSweep.kt`
+  extended to tally `UnknownEscape` occurrences per source document, not
+  just per code (see `doc/LEARNINGS.md` § "Post-plan follow-up: unknown
+  escapes by file" for the full breakdown). The 51,778 occurrences are
+  **not spread across the corpus** — they concentrate almost entirely in
+  three files: `chips_x.hyp` (32,459), `chips50d.hyp` (18,711) and
+  `206stb12.hyp` (607), which together account for 51,777 of the 51,778;
+  the sole remaining occurrence is `msgcheck.hyp` (1, code `0x23`). Every
+  other one of the 702 files has zero `UnknownEscape` diagnostics. The
+  three dominant files also share almost the same code set (`0x1a`, `0x5f`,
+  `0x16`, `0x1e` are the biggest individual codes in all three) — consistent
+  with one compiler/tool version or document generator emitting a
+  consistent set of escapes hypp doesn't yet model, rather than 60-ish
+  independent one-off anomalies. A future phase modeling these escapes has
+  three concrete real documents to develop and test against, not just a
+  code histogram.
+
 ## What remains
 
 Nothing planned. Phase 11 was the plan's last phase
