@@ -53,3 +53,14 @@ val wasmJsFacadeSmokeTest by tasks.registering(Exec::class) {
 tasks.named("check") {
     dependsOn(wasmJsFacadeSmokeTest)
 }
+
+// Phase 11 (wild sweep, doc/PLAN.md): opt-in, network — not part of build/check.
+// Downloads the full public .hyp corpus and runs it through HypDocument.open(); see
+// src/jvmTest/kotlin/de/rholambdapi/hypp/CorpusSweep.kt.
+val corpusSweep by tasks.registering(JavaExec::class) {
+    dependsOn("jvmTestClasses")
+    val jvmTest = kotlin.jvm().compilations.getByName("test")
+    classpath = jvmTest.output.allOutputs + jvmTest.runtimeDependencyFiles
+    mainClass.set("de.rholambdapi.hypp.CorpusSweepKt")
+    args(layout.projectDirectory.dir("build/corpusSweep/cache").asFile.absolutePath)
+}

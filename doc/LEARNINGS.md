@@ -331,3 +331,31 @@ lesson.
   before the goldens existed (clean failure: "missing golden") and after. Worth stating explicitly
   since it's easy to assume a test's CWD needs `System.getProperty("user.dir")` juggling or an
   explicit Gradle `workingDir` override when it doesn't.
+
+## Phase 11
+
+- **A raw-byte scan restricted to the wrong entry types drowns the signal in noise.** The first
+  pass of the `ESC 0xa4` occurrence scan (for the typewriter-vs-colour ambiguity) matched every
+  entry with data, including images — raw bitplane bytes coincidentally contain the two-byte
+  sequence `0x1b 0xa4` often enough (122 hits across the corpus) to swamp the real signal.
+  Restricting to text/popup entries only (the only ones actually escape-parsed) dropped the count
+  to 45, all in one file, and turned a noisy result into a decisive one. Lesson: when scanning
+  decompressed bytes independently of the structured parser, the entry-type filter that the
+  structured parser applies implicitly (only types 0/1 go through `parseNode`) has to be applied
+  explicitly too — "has a compressed object" (`IndexEntry.hasData`) and "is escape-parsed text"
+  are different predicates, and phase 3's `hasData` was the wrong one to reach for here.
+- **Reuse the production container-parsing code for investigative tooling, don't re-derive it.**
+  The wild-sweep tool needs undecoded per-node bytes, which the public `HypDocument` model
+  deliberately doesn't expose. Rather than hand-rolling a second index-table/header reader in the
+  sweep tool (drifting risk, and exactly the "reinventing what's a few files over" trap), the
+  relevant slice of `HypDocument.open()` was factored into two internal functions
+  (`parseContainer`, `decompressEntry`) that both `open()` and the sweep tool call. `clean
+  allTests` green before and after the extraction was the confirmation nothing changed behaviourally.
+- **A histogram's most useful signal is often "which bucket is near-empty," not the biggest bucket.**
+  The `0xa4` question was settled not by a large occurrence count but by the *opposite* — only 45
+  hits in 702 real files, confined to one document — combined with a tight, four-value
+  following-byte distribution ({ESC, space, `#`, NUL}) instead of the broad 0-15 spread a genuine
+  parameter byte would produce (contrast `colors.hyp`'s fg/bg parameter, phase 6). Lesson: when
+  gathering wild-corpus evidence for a format ambiguity, print the *distribution shape*, not just
+  a total count — a parameterless code and a parameterised one are told apart by how spread out the
+  "next byte" values are, not by how often the code appears.

@@ -347,3 +347,55 @@ real, multi-level `@toc` groups (`doc/progress/phase-08-document-api.md`).
 `@prev` describe them as the "Page >"/"Page <" buttons' reading-order chain,
 unrelated to tree nesting; a self-referencing `next`/`prev` value means that
 button is greyed out, not "no data".
+
+## `0xa4` "typewriter" vs. `0xa5`/`0xa6` colour overlap — resolved: `0xa4` is a genuine zero-parameter marker
+
+**Gap:** carried over from phase 6 (see above). `hyp.h` comments that typewriter
+(`0xa4`) "actually uses range `0xa4`-`0xe3`", which would make it a
+multi-value, parameterised escape overlapping the documented one-byte
+`0xa4` no-effect code and the one-parameter-byte `0xa5`/`0xa6` colour
+escapes. Deferred to the phase-11 wild sweep for lack of any occurrence in
+the vendored micro-corpus.
+
+**Resolution:** `0xa4` takes **zero** parameter bytes, exactly as
+implemented since phase 6 — `hyp.h`'s broader range claim does not manifest
+in real files. Unchanged: no code or model change from phase 6's
+implementation.
+
+**Evidence:** the phase-11 wild sweep (`./gradlew corpusSweep`) downloaded
+and opened all 702 files from `tho-otto.m68k.eu/hypview/`'s public corpus
+listing (`doc/progress/phase-11-wild-sweep.md` has the full report). `ESC
+0xa4` occurs only **45 times total**, confined to a single file
+(`hyp2gdos.hyp`, across its "Bedienung", "Optionen" and "Beispiel einer
+Konfigurationsdatei" nodes; the last is a monospaced sample config-file
+listing, `H2G_DEVICE=...`, `H2G_BORDER_LEFT=25`, etc.) — restricted to
+text/popup entries only, since a first, unrestricted pass also matched
+`0x1b 0xa4` inside raw image bitplane data 122 times, which is coincidental
+binary noise, not an escape occurrence.
+
+The decisive test: if `0xa4` consumed a parameter byte, the byte immediately
+after it (what the current zero-parameter implementation treats as the next
+real content byte) would instead be *inside* that parameter — and would only
+coincidentally look like sensible content. Tallied across all 45
+occurrences, that byte is one of exactly four values: `ESC` (`0x1b`, 32
+times), `'#'` (`0x23`, 5 times, always the start of a config-file comment
+line), `' '` (`0x20`, 4 times) or `NUL` (`0x00`, 4 times, the line
+terminator) — never a small integer in a broad spread the way a genuine
+parameter byte would read (contrast the `0xa5`/`0xa6` colour parameter's
+full 0-15 spread in `colors.hyp`, phase 6). Every occurrence sits at a
+natural structural boundary: end-of-line, immediately before a link escape,
+or immediately before a comment marker — and the ±20-byte decoded context
+around each one reads as clean, unbroken German prose and config-file text
+with no stray characters, exactly what zero-parameter decoding predicts.
+Also notable: `0x64`-`0xa3` (the documented absolute-attribute bit vector)
+is exactly 64 codes — `2^6`, matching its own 6 documented style bits
+exhaustively — so `0xa4` is structurally "the code right after a full
+bit-vector range", consistent with being a distinct one-off marker rather
+than a continuation of it.
+
+**Not fully explained:** *why* the marker exists (its "no visual effect" is
+taken from the prose spec, not derived here) or what `hyp.h`'s range comment
+was describing — possibly an implementation-detail range check in the
+reference decoder rather than a claim about the wire format. Immaterial to
+correctness: parsing 0xa4 as a bare zero-parameter code is confirmed against
+every real occurrence found.
