@@ -1,0 +1,39 @@
+{
+  "header": {
+    "itableSize": 14,
+    "itableCount": 1,
+    "compilerVersion": 3,
+    "compilerOs": 2
+  },
+  "extendedHeaders": [
+    {
+      "kind": "Charset",
+      "name": "atarist"
+    },
+    {
+      "kind": "Unknown",
+      "id": 4,
+      "data": "2d69202d74340000"
+    },
+    {
+      "kind": "Unknown",
+      "id": 8,
+      "data": "6b65696e7300"
+    },
+    {
+      "kind": "Unknown",
+      "id": 10,
+      "data": "0000"
+    },
+    {
+      "kind": "Unknown",
+      "id": 11,
+      "data": "4b00"
+    }
+  ],
+  "charset": "AtariSt",
+  "entries": [],
+  "nodes": [],
+  "images": [],
+  "diagnostics": []
+}

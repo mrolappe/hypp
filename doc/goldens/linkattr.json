@@ -1,0 +1,398 @@
+{
+  "header": {
+    "itableSize": 244,
+    "itableCount": 11,
+    "compilerVersion": 3,
+    "compilerOs": 2
+  },
+  "extendedHeaders": [
+    {
+      "kind": "Charset",
+      "name": "atarist"
+    },
+    {
+      "kind": "Unknown",
+      "id": 4,
+      "data": "2d643132202b67202d69202d73202d7434202b7a0000"
+    },
+    {
+      "kind": "Unknown",
+      "id": 8,
+      "data": "4b65696e7300"
+    },
+    {
+      "kind": "Unknown",
+      "id": 10,
+      "data": "0000"
+    },
+    {
+      "kind": "Unknown",
+      "id": 11,
+      "data": "4b00"
+    }
+  ],
+  "charset": "AtariSt",
+  "entries": [
+    {
+      "index": 0,
+      "len": 20,
+      "type": 0,
+      "seek": 320,
+      "compDiff": 58,
+      "next": 1,
+      "prev": 0,
+      "toc": 0,
+      "name": "Main",
+      "compressedLength": 131,
+      "uncompressedLength": 189
+    },
+    {
+      "index": 1,
+      "len": 22,
+      "type": 0,
+      "seek": 451,
+      "compDiff": 0,
+      "next": 2,
+      "prev": 0,
+      "toc": 0,
+      "name": "Page 1",
+      "compressedLength": 17,
+      "uncompressedLength": 17
+    },
+    {
+      "index": 2,
+      "len": 22,
+      "type": 0,
+      "seek": 468,
+      "compDiff": 0,
+      "next": 2,
+      "prev": 1,
+      "toc": 0,
+      "name": "Page 2",
+      "compressedLength": 17,
+      "uncompressedLength": 17
+    },
+    {
+      "index": 3,
+      "len": 20,
+      "type": 1,
+      "seek": 485,
+      "compDiff": 0,
+      "next": 3,
+      "prev": 2,
+      "toc": 0,
+      "name": "popup",
+      "compressedLength": 17,
+      "uncompressedLength": 17
+    },
+    {
+      "index": 4,
+      "len": 28,
+      "type": 2,
+      "seek": 502,
+      "compDiff": 0,
+      "next": 0,
+      "prev": 0,
+      "toc": 0,
+      "name": "hcp.hyp/Main",
+      "compressedLength": 0,
+      "uncompressedLength": 0
+    },
+    {
+      "index": 5,
+      "len": 26,
+      "type": 4,
+      "seek": 502,
+      "compDiff": 0,
+      "next": 0,
+      "prev": 0,
+      "toc": 0,
+      "name": "echo hello",
+      "compressedLength": 0,
+      "uncompressedLength": 0
+    },
+    {
+      "index": 6,
+      "len": 32,
+      "type": 6,
+      "seek": 502,
+      "compDiff": 0,
+      "next": 0,
+      "prev": 0,
+      "toc": 0,
+      "name": "echo rexx command",
+      "compressedLength": 0,
+      "uncompressedLength": 0
+    },
+    {
+      "index": 7,
+      "len": 32,
+      "type": 5,
+      "seek": 502,
+      "compDiff": 0,
+      "next": 0,
+      "prev": 0,
+      "toc": 0,
+      "name": "echo rexx script",
+      "compressedLength": 0,
+      "uncompressedLength": 0
+    },
+    {
+      "index": 8,
+      "len": 14,
+      "type": 8,
+      "seek": 502,
+      "compDiff": 0,
+      "next": 0,
+      "prev": 0,
+      "toc": 0,
+      "name": "",
+      "compressedLength": 0,
+      "uncompressedLength": 0
+    },
+    {
+      "index": 9,
+      "len": 14,
+      "type": 7,
+      "seek": 502,
+      "compDiff": 0,
+      "next": 0,
+      "prev": 0,
+      "toc": 0,
+      "name": "",
+      "compressedLength": 0,
+      "uncompressedLength": 0
+    }
+  ],
+  "nodes": [
+    {
+      "index": 0,
+      "name": "Main",
+      "kind": "TEXT",
+      "windowTitle": null,
+      "graphics": [],
+      "crossReferences": [],
+      "dataBlocks": [],
+      "objectTable": [],
+      "lines": [
+        {
+          "spans": [
+            {
+              "text": "Link to ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "internal Page",
+              "styleBits": 256,
+              "link": {
+                "kind": "LINK",
+                "target": 1,
+                "lineNumber": null,
+                "label": "internal Page"
+              }
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Link to ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "Popup",
+              "styleBits": 256,
+              "link": {
+                "kind": "LINK",
+                "target": 3,
+                "lineNumber": null,
+                "label": "Popup"
+              }
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Link to ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "external Page",
+              "styleBits": 256,
+              "link": {
+                "kind": "LINK",
+                "target": 4,
+                "lineNumber": null,
+                "label": "external Page"
+              }
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Say ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "hello",
+              "styleBits": 256,
+              "link": {
+                "kind": "LINK",
+                "target": 5,
+                "lineNumber": null,
+                "label": "hello"
+              }
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Link to ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "REXX command",
+              "styleBits": 256,
+              "link": {
+                "kind": "LINK",
+                "target": 6,
+                "lineNumber": null,
+                "label": "REXX command"
+              }
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Link to ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "REXX script",
+              "styleBits": 256,
+              "link": {
+                "kind": "LINK",
+                "target": 7,
+                "lineNumber": null,
+                "label": "REXX script"
+              }
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Close",
+              "styleBits": 256,
+              "link": {
+                "kind": "LINK",
+                "target": 8,
+                "lineNumber": null,
+                "label": "Close"
+              }
+            },
+            {
+              "text": " this window",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Exit",
+              "styleBits": 256,
+              "link": {
+                "kind": "LINK",
+                "target": 9,
+                "lineNumber": null,
+                "label": "Exit"
+              }
+            },
+            {
+              "text": " quit application",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "name": "Page 1",
+      "kind": "TEXT",
+      "windowTitle": null,
+      "graphics": [],
+      "crossReferences": [],
+      "dataBlocks": [],
+      "objectTable": [],
+      "lines": [
+        {
+          "spans": [
+            {
+              "text": "Dies ist Seite 1",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "name": "Page 2",
+      "kind": "TEXT",
+      "windowTitle": null,
+      "graphics": [],
+      "crossReferences": [],
+      "dataBlocks": [],
+      "objectTable": [],
+      "lines": [
+        {
+          "spans": [
+            {
+              "text": "Dies ist Seite 2",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "name": "popup",
+      "kind": "POPUP",
+      "windowTitle": null,
+      "graphics": [],
+      "crossReferences": [],
+      "dataBlocks": [],
+      "objectTable": [],
+      "lines": [
+        {
+          "spans": [
+            {
+              "text": "This is a popup.",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "images": [],
+  "diagnostics": []
+}

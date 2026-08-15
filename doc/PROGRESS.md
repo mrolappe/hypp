@@ -14,7 +14,7 @@ of every round.
 | 7 | Images | green |
 | 8 | Document API | green |
 | 9 | JS façade | green |
-| 10 | Parity artefacts | not started |
+| 10 | Parity artefacts | green |
 | 11 | Wild sweep | not started |
 
 Per-phase detail: `doc/progress/phase-NN-<name>.md`.

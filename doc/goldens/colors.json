@@ -1,0 +1,293 @@
+{
+  "header": {
+    "itableSize": 34,
+    "itableCount": 2,
+    "compilerVersion": 3,
+    "compilerOs": 2
+  },
+  "extendedHeaders": [
+    {
+      "kind": "Charset",
+      "name": "atarist"
+    },
+    {
+      "kind": "Unknown",
+      "id": 4,
+      "data": "2d69202d73202d743400"
+    },
+    {
+      "kind": "Unknown",
+      "id": 8,
+      "data": "446f63756d656e746174696f6e00"
+    },
+    {
+      "kind": "Unknown",
+      "id": 9,
+      "data": "00000000"
+    },
+    {
+      "kind": "Unknown",
+      "id": 10,
+      "data": "0000"
+    },
+    {
+      "kind": "Unknown",
+      "id": 11,
+      "data": "4b00"
+    }
+  ],
+  "charset": "AtariSt",
+  "entries": [
+    {
+      "index": 0,
+      "len": 20,
+      "type": 0,
+      "seek": 114,
+      "compDiff": 287,
+      "next": 0,
+      "prev": 0,
+      "toc": 0,
+      "name": "Main",
+      "compressedLength": 135,
+      "uncompressedLength": 422
+    }
+  ],
+  "nodes": [
+    {
+      "index": 0,
+      "name": "Main",
+      "kind": "TEXT",
+      "windowTitle": null,
+      "graphics": [],
+      "crossReferences": [],
+      "dataBlocks": [],
+      "objectTable": [],
+      "lines": [
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "white world",
+              "styleBits": 4096,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello black world",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "red world",
+              "styleBits": 512,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "green world",
+              "styleBits": 768,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "blue world",
+              "styleBits": 1024,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "cyan world",
+              "styleBits": 1280,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "yellow world",
+              "styleBits": 1536,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "magenta world",
+              "styleBits": 1792,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "light gray world",
+              "styleBits": 2048,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "dark gray world",
+              "styleBits": 2304,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "dark red world",
+              "styleBits": 2560,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "dark green world",
+              "styleBits": 2816,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "dark blue world",
+              "styleBits": 3072,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "dark cyan world",
+              "styleBits": 3328,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "dark yellow world",
+              "styleBits": 3584,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "hello ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "dark magenta world",
+              "styleBits": 3840,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        }
+      ]
+    }
+  ],
+  "images": [],
+  "diagnostics": []
+}

@@ -316,3 +316,18 @@ lesson.
   second, conflicting one. Lesson: when adding a task that consumes a Kotlin/Wasm distribution
   output, run `./gradlew build` (not just the new task in isolation) before considering it done —
   the conflict only appears once both flavours are in the same task graph.
+
+## Phase 10
+
+- **A brand-new `jvmTest` source set needs no explicit wiring to see `commonTest`'s `internal`
+  declarations.** `TestCorpus` (in `commonTest`) is `internal`, and `ParityGoldenTest` (the first
+  file ever placed under `src/jvmTest/`) reads it directly with no import/visibility error — Kotlin
+  Multiplatform's `jvm()` target compiles `commonTest` + `jvmTest` into one JVM test compilation
+  unit, so `internal` visibility is shared automatically once the directory exists. Nothing to add
+  to `build.gradle.kts` beyond creating the folder.
+- **A Gradle `Test` task's working directory is the module's project directory by default** (not
+  the module's `build/` output). A relative `File("doc/goldens/$name.json")` in
+  `ParityGoldenTest.kt` resolves correctly with zero configuration — confirmed by running the test
+  before the goldens existed (clean failure: "missing golden") and after. Worth stating explicitly
+  since it's easy to assume a test's CWD needs `System.getProperty("user.dir")` juggling or an
+  explicit Gradle `workingDir` override when it doesn't.

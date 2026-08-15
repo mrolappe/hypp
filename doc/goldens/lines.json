@@ -1,0 +1,397 @@
+{
+  "header": {
+    "itableSize": 34,
+    "itableCount": 2,
+    "compilerVersion": 3,
+    "compilerOs": 2
+  },
+  "extendedHeaders": [
+    {
+      "kind": "Charset",
+      "name": "atarist"
+    },
+    {
+      "kind": "Unknown",
+      "id": 4,
+      "data": "2d643132202b67202d69202d73202d7434202b7a0000"
+    },
+    {
+      "kind": "Unknown",
+      "id": 8,
+      "data": "4b65696e7300"
+    },
+    {
+      "kind": "Unknown",
+      "id": 10,
+      "data": "0000"
+    },
+    {
+      "kind": "Unknown",
+      "id": 11,
+      "data": "4b00"
+    }
+  ],
+  "charset": "AtariSt",
+  "entries": [
+    {
+      "index": 0,
+      "len": 20,
+      "type": 0,
+      "seek": 110,
+      "compDiff": 338,
+      "next": 0,
+      "prev": 0,
+      "toc": 0,
+      "name": "Main",
+      "compressedLength": 191,
+      "uncompressedLength": 529
+    }
+  ],
+  "nodes": [
+    {
+      "index": 0,
+      "name": "Main",
+      "kind": "TEXT",
+      "windowTitle": null,
+      "graphics": [
+        {
+          "kind": "RoundedBox",
+          "x": 32,
+          "y": 1,
+          "width": 10,
+          "height": 5,
+          "fillPattern": 2
+        },
+        {
+          "kind": "RoundedBox",
+          "x": 52,
+          "y": 1,
+          "width": 10,
+          "height": 5,
+          "fillPattern": 1
+        },
+        {
+          "kind": "Box",
+          "x": 32,
+          "y": 7,
+          "width": 10,
+          "height": 5,
+          "fillPattern": 2
+        },
+        {
+          "kind": "Box",
+          "x": 52,
+          "y": 7,
+          "width": 10,
+          "height": 5,
+          "fillPattern": 1
+        },
+        {
+          "kind": "Line",
+          "x": 5,
+          "y": 13,
+          "width": 148,
+          "height": 1,
+          "arrowAtStart": true,
+          "arrowAtEnd": false,
+          "lineStyle": 0
+        },
+        {
+          "kind": "Line",
+          "x": 25,
+          "y": 15,
+          "width": 108,
+          "height": 1,
+          "arrowAtStart": true,
+          "arrowAtEnd": false,
+          "lineStyle": 0
+        },
+        {
+          "kind": "Line",
+          "x": 5,
+          "y": 17,
+          "width": 148,
+          "height": 1,
+          "arrowAtStart": true,
+          "arrowAtEnd": true,
+          "lineStyle": 0
+        },
+        {
+          "kind": "Line",
+          "x": 25,
+          "y": 19,
+          "width": 108,
+          "height": 1,
+          "arrowAtStart": true,
+          "arrowAtEnd": true,
+          "lineStyle": 0
+        },
+        {
+          "kind": "Line",
+          "x": 5,
+          "y": 21,
+          "width": 148,
+          "height": 1,
+          "arrowAtStart": false,
+          "arrowAtEnd": true,
+          "lineStyle": 0
+        },
+        {
+          "kind": "Line",
+          "x": 25,
+          "y": 23,
+          "width": 108,
+          "height": 1,
+          "arrowAtStart": false,
+          "arrowAtEnd": true,
+          "lineStyle": 0
+        },
+        {
+          "kind": "Line",
+          "x": 5,
+          "y": 25,
+          "width": 148,
+          "height": 1,
+          "arrowAtStart": false,
+          "arrowAtEnd": false,
+          "lineStyle": 1
+        },
+        {
+          "kind": "Line",
+          "x": 25,
+          "y": 27,
+          "width": 108,
+          "height": 1,
+          "arrowAtStart": false,
+          "arrowAtEnd": false,
+          "lineStyle": 1
+        },
+        {
+          "kind": "Line",
+          "x": 5,
+          "y": 31,
+          "width": 148,
+          "height": 6,
+          "arrowAtStart": true,
+          "arrowAtEnd": true,
+          "lineStyle": 0
+        },
+        {
+          "kind": "Line",
+          "x": 25,
+          "y": 37,
+          "width": 108,
+          "height": 6,
+          "arrowAtStart": true,
+          "arrowAtEnd": true,
+          "lineStyle": 0
+        }
+      ],
+      "crossReferences": [],
+      "dataBlocks": [],
+      "objectTable": [],
+      "lines": [
+        {
+          "spans": [
+            {
+              "text": "rounded box",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": [
+            {
+              "text": "normal box",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": [
+            {
+              "text": "horizontal line left to right",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": [
+            {
+              "text": "horizontal line right to left",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": [
+            {
+              "text": "horizontal line left to right arrow end",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": [
+            {
+              "text": "horizontal line right to left arrow end",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": [
+            {
+              "text": "horizontal line left to right arrow start",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": [
+            {
+              "text": "horizontal line right to left arrow start",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": [
+            {
+              "text": "horizontal line left to right both arrows",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": [
+            {
+              "text": "horizontal line right to left both arrows",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": [
+            {
+              "text": "diagonal line left to right",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": [
+            {
+              "text": "diagonal line right to left",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        },
+        {
+          "spans": []
+        }
+      ]
+    }
+  ],
+  "images": [],
+  "diagnostics": []
+}

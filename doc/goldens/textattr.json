@@ -1,0 +1,227 @@
+{
+  "header": {
+    "itableSize": 34,
+    "itableCount": 2,
+    "compilerVersion": 3,
+    "compilerOs": 2
+  },
+  "extendedHeaders": [
+    {
+      "kind": "Charset",
+      "name": "atarist"
+    },
+    {
+      "kind": "Unknown",
+      "id": 4,
+      "data": "2d643132202b67202d69202d73202d7434202b7a0000"
+    },
+    {
+      "kind": "Unknown",
+      "id": 8,
+      "data": "4b65696e7300"
+    },
+    {
+      "kind": "Unknown",
+      "id": 10,
+      "data": "0000"
+    },
+    {
+      "kind": "Unknown",
+      "id": 11,
+      "data": "4b00"
+    }
+  ],
+  "charset": "AtariSt",
+  "entries": [
+    {
+      "index": 0,
+      "len": 20,
+      "type": 0,
+      "seek": 110,
+      "compDiff": 174,
+      "next": 0,
+      "prev": 0,
+      "toc": 0,
+      "name": "Main",
+      "compressedLength": 119,
+      "uncompressedLength": 293
+    }
+  ],
+  "nodes": [
+    {
+      "index": 0,
+      "name": "Main",
+      "kind": "TEXT",
+      "windowTitle": null,
+      "graphics": [],
+      "crossReferences": [],
+      "dataBlocks": [],
+      "objectTable": [],
+      "lines": [
+        {
+          "spans": [
+            {
+              "text": "Dies ist normaler Text.",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Dies ist ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "heller",
+              "styleBits": 258,
+              "link": null
+            },
+            {
+              "text": " Text.",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Dies ist ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "fetter",
+              "styleBits": 257,
+              "link": null
+            },
+            {
+              "text": " Text.",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Dies ist ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "unterstrichener",
+              "styleBits": 264,
+              "link": null
+            },
+            {
+              "text": " Text.",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "    ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "Unterstrichener",
+              "styleBits": 264,
+              "link": null
+            },
+            {
+              "text": " Text am Zeilenanfang.",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Dies ist ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "  auch   unterstrichener  ",
+              "styleBits": 264,
+              "link": null
+            },
+            {
+              "text": " Text.",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Dies ist ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "kursiver",
+              "styleBits": 260,
+              "link": null
+            },
+            {
+              "text": " Text.",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Dies ist ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "umrandeter",
+              "styleBits": 272,
+              "link": null
+            },
+            {
+              "text": " Text.",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "Dies ist ",
+              "styleBits": 256,
+              "link": null
+            },
+            {
+              "text": "schattierter",
+              "styleBits": 288,
+              "link": null
+            },
+            {
+              "text": " Text.",
+              "styleBits": 256,
+              "link": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "images": [],
+  "diagnostics": []
+}
