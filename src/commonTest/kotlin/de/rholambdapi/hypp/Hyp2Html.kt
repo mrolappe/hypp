@@ -14,7 +14,7 @@ fun hyp2html(document: HypDocument): String = buildString {
         append("<h2>").append(escapeHtml(node.name)).appendLine("</h2>")
         for (graphic in node.graphics) {
             if (graphic !is Graphic.Image) continue
-            val image = document.images.firstOrNull { it.index == graphic.imageIndex } ?: continue
+            val image = document.image(graphic.imageIndex) ?: continue
             append("<img width=\"").append(image.width).append("\" height=\"").append(image.height)
             append("\" src=\"").append(dataUri(image)).appendLine("\">")
         }

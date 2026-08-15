@@ -12,7 +12,7 @@ of every round.
 | 5 | Node prologue | green |
 | 6 | Text and spans | green |
 | 7 | Images | green |
-| 8 | Document API | not started |
+| 8 | Document API | green |
 | 9 | JS façade | not started |
 | 10 | Parity artefacts | not started |
 | 11 | Wild sweep | not started |

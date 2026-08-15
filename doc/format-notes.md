@@ -326,3 +326,24 @@ indices 10–15, which matches those entries' own corpus-confirmed names.
 This is a public, independent, standard-palette convention (same category as
 phase 4's UDO charset table), not verified against any `.hyp` file's actual
 rendering.
+
+## Index-entry `toc` is `@toc`'s "Contents" jump target, not a raw tree-parent field
+
+**Gap:** the index-table field's prose gloss is just "Index of the table of
+contents for this object" — read in isolation, ambiguous between "the parent
+in a navigation tree" and something else entirely.
+
+**Resolution:** `hcpcmds.ui`'s `@toc <name>` documentation is unambiguous:
+it sets what the ST-Guide window's "Contents" button jumps to *from this
+page*, defaulting (when unset) to "the physically first page of the text"
+(index 0). Placed before a `@node`, it applies to all following nodes until
+overridden — "an easy way to create a group of nodes with a single entry in
+the Contents popup". Read that way, grouping `entries` by this field
+(children of `k` = every entry whose own `toc` equals `k`) still produces
+exactly the nesting a table-of-contents needs, because a group's "Contents"
+target *is* its structural parent — confirmed against `st-guide_orig_en.hyp`'s
+real, multi-level `@toc` groups (`doc/progress/phase-08-document-api.md`).
+`next`/`prev` are a separate mechanism entirely — `hcpcmds.ui`'s `@next`/
+`@prev` describe them as the "Page >"/"Page <" buttons' reading-order chain,
+unrelated to tree nesting; a self-referencing `next`/`prev` value means that
+button is greyed out, not "no data".

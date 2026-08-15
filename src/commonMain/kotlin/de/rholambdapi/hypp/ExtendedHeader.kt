@@ -23,4 +23,13 @@ sealed interface ExtendedHeader {
             const val ID = 30
         }
     }
+
+    /** `@default` — id 2, the NUL-terminated name of the node to open first. */
+    data class Default(val name: String) : ExtendedHeader {
+        override val id: Int get() = ID
+
+        companion object {
+            const val ID = 2
+        }
+    }
 }

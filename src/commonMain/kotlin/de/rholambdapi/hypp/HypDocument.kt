@@ -13,6 +13,41 @@ class HypDocument(
     val images: List<ImageNode>,
     val diagnostics: List<Diagnostic>,
 ) {
+    private val nodesByIndex: Map<NodeIndex, Node> by lazy { nodes.associateBy { it.index } }
+    private val imagesByIndex: Map<NodeIndex, ImageNode> by lazy { images.associateBy { it.index } }
+
+    /** Every entry type (including navigation-only ones like external refs or quit) resolves here. */
+    fun entry(index: NodeIndex): IndexEntry? = entries.getOrNull(index.value)
+
+    /** Non-null only for internal/popup entries — see [entry] for a target that may be any type. */
+    fun node(index: NodeIndex): Node? = nodesByIndex[index]
+
+    /** Non-null only for image entries — see [entry] for a target that may be any type. */
+    fun image(index: NodeIndex): ImageNode? = imagesByIndex[index]
+
+    /** The node named by extended header id 2 (`@default`), or null if that header is absent or dangling. */
+    val defaultNode: NodeIndex? by lazy {
+        val name = extendedHeaders.filterIsInstance<ExtendedHeader.Default>().firstOrNull()?.name
+        name?.let { n -> entries.indexOfFirst { it.name == n }.takeIf { it >= 0 }?.let(::NodeIndex) }
+    }
+
+    /**
+     * The document's table of contents, rooted at [NodeIndex] 0 and nested via [IndexEntry.toc].
+     * A `toc` cycle away from the root (malformed input) is broken silently rather than recursing
+     * forever: once an index has been placed in the tree it cannot be placed again.
+     */
+    fun tableOfContents(): TocEntry {
+        val childrenOf = HashMap<Int, MutableList<Int>>()
+        entries.forEachIndexed { i, e -> if (i != 0) childrenOf.getOrPut(e.toc) { mutableListOf() }.add(i) }
+        val visited = HashSet<Int>()
+        fun build(i: Int): TocEntry {
+            visited += i
+            val children = childrenOf[i].orEmpty().filter { it !in visited }
+            return TocEntry(NodeIndex(i), children.map(::build))
+        }
+        return build(0)
+    }
+
     companion object {
         private const val MAGIC = "HDOC"
         private const val ENTRY_FIXED_SIZE = 14
@@ -73,10 +108,10 @@ class HypDocument(
                 val length = reader.readU16()
                 if (id == 0) break
                 val data = reader.readBytes(length)
-                extendedHeaders += if (id == ExtendedHeader.Charset.ID) {
-                    ExtendedHeader.Charset(data.decodeName())
-                } else {
-                    ExtendedHeader.Unknown(id, data)
+                extendedHeaders += when (id) {
+                    ExtendedHeader.Charset.ID -> ExtendedHeader.Charset(data.decodeName())
+                    ExtendedHeader.Default.ID -> ExtendedHeader.Default(data.decodeName())
+                    else -> ExtendedHeader.Unknown(id, data)
                 }
             }
 
