@@ -17,7 +17,7 @@ of every round.
 | 10 | Parity artefacts | green |
 | 11 | Wild sweep | green |
 | 12 | `.REF` parsing | green |
-| 13 | Traversal API: `resolve()` | not started |
+| 13 | Traversal API: `resolve()` | green |
 | 14 | `hypp-cli` scaffold + `Renderer` abstraction | not started |
 | 15 | Six renderers | not started |
 | 16 | CLI commands + Round A (JVM fat jar) | not started |
