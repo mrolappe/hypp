@@ -18,7 +18,7 @@ of every round.
 | 11 | Wild sweep | green |
 | 12 | `.REF` parsing | green |
 | 13 | Traversal API: `resolve()` | green |
-| 14 | `hypp-cli` scaffold + `Renderer` abstraction | not started |
+| 14 | `hypp-cli` scaffold + `Renderer` abstraction | green |
 | 15 | Six renderers | not started |
 | 16 | CLI commands + Round A (JVM fat jar) | not started |
 | 17 | CLI Round B (GraalVM native-image) | not started |
