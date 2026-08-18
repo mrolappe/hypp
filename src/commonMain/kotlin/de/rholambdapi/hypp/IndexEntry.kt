@@ -46,3 +46,14 @@ data class IndexEntry(
         const val TYPE_EOF = 255
     }
 }
+
+/**
+ * A [IndexEntry.TYPE_EXTERNAL_REF] entry's [IndexEntry.name] packs `"<filename>/<nodename>"`
+ * into one NUL-terminated string. A couple of real files omit the `/` entirely; for those the
+ * whole string is the node name, and there is no known file name.
+ */
+data class ExternalRef(val fileName: String?, val nodeName: String)
+
+fun IndexEntry.externalRef(): ExternalRef =
+    if ("/" in name) ExternalRef(name.substringBefore("/"), name.substringAfter("/"))
+    else ExternalRef(null, name)
