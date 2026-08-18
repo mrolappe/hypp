@@ -146,12 +146,12 @@ class RefFileTest {
     }
 
     @Test
-    fun emptyModuleIsNotATerminator() {
-        // A zero-entry module is only distinguishable from the terminator by its position:
-        // the terminator ends the file, so anything after it is unreachable.
-        val ref = parsed(refBytes(module(entry(ID_FILE, "a")), module()))
-        assertEquals(2, ref.modules.size)
-        assertEquals(emptyList(), ref.modules[1].entries)
+    fun zeroEntryModuleIsIndistinguishableFromTheTerminator() {
+        // A module of length 0 with 0 entries is byte-identical to the 8-zero-byte terminator,
+        // so it necessarily ends the file — nothing following it can be reached.
+        val ref = parsed(refBytes(module(entry(ID_FILE, "a")), module(), module(entry(ID_FILE, "b"))))
+        assertEquals(1, ref.modules.size)
+        assertEquals(listOf(RefEntry.FileName("a")), ref.modules[0].entries)
     }
 
     @Test
