@@ -399,3 +399,44 @@ was describing — possibly an implementation-detail range check in the
 reference decoder rather than a claim about the wire format. Immaterial to
 correctness: parsing 0xa4 as a bare zero-parameter code is confirmed against
 every real occurrence found.
+
+## Phase 12: `.REF` binary format findings
+
+### `.REF` entry type and field layout confirmed (2026-08-18)
+
+**Scope:** The `.REF` container format (magic "HREF", modules, entry sequences) was parsed successfully into a working model (`RefFile.kt`, committed `ba35526`); the property-based round-trip test confirms encode/decode symmetry across 200 random seeds.
+
+**Layout confirmed:** per `doc/PLAN-12-19.md` § ".REF binary format":
+- **Module-header:** 4-byte big-endian length (module data only, not header), 4-byte big-endian entry count.
+- **Entry** (one per-entry sequence):
+  - 1 byte: entry id (0=File, 1=Node, 2=Alias, 3=Label, 4=Database).
+  - 1 byte: length of string field (NUL-terminated, not including the NUL).
+  - N bytes: NUL-terminated string.
+  - **3 only (Label):** 2 additional bytes (big-endian line number) after the NUL — the "EXTRA" bytes flagged by the spec's capitalization.
+- **Terminator:** 8 zero bytes in place of a module-header marks end of file. An "empty" (zero-entry, zero-length) module is byte-identical to the terminator and ends the file.
+
+**Evidence:** The exact byte-encoding pattern (via `RefFileTest.kt`'s `entry()`/`module()`/`refBytes()` helpers, reused for the property generator in `RefFilePropertyTest.kt`) encodes and decodes symmetrically for random entry sequences. No special cases found; the spec text reads literally.
+
+### `TYPE_EXTERNAL_REF.name` format and real anomalies — count correction (2026-08-18)
+
+**Original estimate:** `doc/PLAN-12-19.md` § "Resolved: what TYPE_EXTERNAL_REF.name actually contains" listed 18 type-2 entries in `hcp_orig_en.hyp`.
+
+**Actual verified count:** 16 entries — 14 with a `/`-split fileName plus 2 anomalies with no `/`. Source: `src/commonTest/kotlin/de/rholambdapi/hypp/IndexEntryTest.kt`, lines 44–52, verified against the vendored fixture. The plan's estimate was off by 2.
+
+**Anomalies:** Two entries with no `/` (whole string = node name, `fileName = null`):
+- `"Options"`
+- `"command extern"`
+
+**Treatment:** `IndexEntry.externalRef()` splits on the first `/` if present, else yields `ExternalRef(null, name)`. Matches the empirical finding.
+
+### Parser judgment calls (design decisions during implementation)
+
+Three deliberate reading choices made during parser implementation, recorded here as they are not directly contradicted by corpus evidence but rest on interpretation of spec text:
+
+**(a) Empty modules are indistinguishable from terminator.** A module with length=0 and count=0 is byte-identical to the 8-zero-byte terminator. Parser treats such a module as the terminator and ends the file, rather than yielding an empty module followed by more content. Test: `RefFileTest.kt` § `zeroEntryModuleIsIndistinguishableFromTheTerminator()` — confirms this behaviour preserves the spec's terminator semantics. No real `.REF` files exist to confirm this against; synthetic test pins the choice.
+
+**(b) File ending without an explicit terminator is accepted.** The container may end at a module boundary (after the last module's data) without an 8-zero-byte terminator. This mirrors the `.HYP` container's own optional EOF sentinel convention (`doc/LEARNINGS.md` § "EOF sentinel is optional"). Parser stops at `bytes.size` if the terminator is never reached, rather than treating it as truncated. Test: `RefFileTest.kt` § `fileEndingWithoutATerminatorStillParses()` confirms this accepts valid-but-unterminated input.
+
+**(c) Label entries' line-number bytes are read as per spec text, literally.** The spec marks them "EXTRA" bytes following the NUL, and the parser reads exactly 2 bytes as big-endian line number. No corpus files exist to confirm this against (no real `.REF` samples in the public corpus — see `doc/PLAN-12-19.md` § Semantically). The reading is a bytes-follow-the-spec-text-literally interpretation. Test: `RefFileTest.kt` § `labelEntryCarriesItsLineNumber()` covers this.
+
+**Evidence:** All three choices are consistent with the parser's successful round-trip test across 200 random seeds, and with the hand-constructed test cases in `RefFileTest.kt`. No contradictions found. Behavior is deferred-decision-safe: a future real `.REF` file would immediately surface any misreading.

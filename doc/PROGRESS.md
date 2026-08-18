@@ -16,7 +16,7 @@ of every round.
 | 9 | JS façade | green |
 | 10 | Parity artefacts | green |
 | 11 | Wild sweep | green |
-| 12 | `.REF` parsing | not started |
+| 12 | `.REF` parsing | green |
 | 13 | Traversal API: `resolve()` | not started |
 | 14 | `hypp-cli` scaffold + `Renderer` abstraction | not started |
 | 15 | Six renderers | not started |
