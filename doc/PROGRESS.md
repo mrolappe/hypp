@@ -22,7 +22,7 @@ of every round.
 | 15 | Six renderers | green |
 | 16 | CLI commands + Round A (JVM fat jar) | green |
 | 17 | CLI Round B (GraalVM native-image) | green |
-| 18 | CLI Round C (`wasmWasi`) | not started |
+| 18 | CLI Round C (`wasmWasi`) | green |
 | 19 | CLI Round D (`macosArm64`) | not started |
 
 Per-phase detail: `doc/progress/phase-NN-<name>.md`. Phases 12–19 are planned
