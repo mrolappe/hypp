@@ -20,7 +20,7 @@ of every round.
 | 13 | Traversal API: `resolve()` | green |
 | 14 | `hypp-cli` scaffold + `Renderer` abstraction | green |
 | 15 | Six renderers | green |
-| 16 | CLI commands + Round A (JVM fat jar) | not started |
+| 16 | CLI commands + Round A (JVM fat jar) | green |
 | 17 | CLI Round B (GraalVM native-image) | not started |
 | 18 | CLI Round C (`wasmWasi`) | not started |
 | 19 | CLI Round D (`macosArm64`) | not started |
