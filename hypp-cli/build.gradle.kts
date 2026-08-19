@@ -53,3 +53,10 @@ tasks.register<JavaExec>("run") {
 tasks.named("jvmTest") {
     dependsOn(fatJar)
 }
+
+// Phase 17: opt-in, requires a local GraalVM with native-image on PATH — not part of
+// build/check, same pattern as the root project's corpusSweep.
+val nativeImageCli by tasks.registering(Exec::class) {
+    dependsOn(fatJar)
+    commandLine("native-image", "-jar", fatJar.get().outputs.files.singleFile.path, "hypp-cli")
+}
