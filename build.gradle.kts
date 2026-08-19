@@ -22,6 +22,7 @@ kotlin {
     wasmWasi {
         nodejs()
     }
+    macosArm64()
 
     sourceSets {
         commonTest.dependencies {

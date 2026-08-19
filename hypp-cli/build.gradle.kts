@@ -18,6 +18,11 @@ kotlin {
         binaries.executable()
         nodejs()
     }
+    macosArm64 {
+        binaries.executable {
+            entryPoint = "de.rholambdapi.hypp.cli.main"
+        }
+    }
 
     sourceSets {
         // commonMain (render/*.kt, Commands.kt, ArgParser.kt) references HypDocument etc.
@@ -34,6 +39,9 @@ kotlin {
         }
         wasmWasiMain.dependencies {
             implementation("de.rholambdapi:hypp-wasm-wasi:0.1.0-SNAPSHOT")
+        }
+        macosArm64Main.dependencies {
+            implementation("de.rholambdapi:hypp-macosarm64:0.1.0-SNAPSHOT")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

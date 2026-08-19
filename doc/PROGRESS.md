@@ -23,7 +23,7 @@ of every round.
 | 16 | CLI commands + Round A (JVM fat jar) | green |
 | 17 | CLI Round B (GraalVM native-image) | green |
 | 18 | CLI Round C (`wasmWasi`) | green |
-| 19 | CLI Round D (`macosArm64`) | not started |
+| 19 | CLI Round D (`macosArm64`) | amber — blocked on local Xcode install |
 
 Per-phase detail: `doc/progress/phase-NN-<name>.md`. Phases 12–19 are planned
 in `doc/PLAN-12-19.md` (approved 2026-08-18, not `doc/PLAN.md`'s original
@@ -31,6 +31,16 @@ in `doc/PLAN-12-19.md` (approved 2026-08-18, not `doc/PLAN.md`'s original
 delegating each step to sub-agents with model overrides per that plan's
 per-step assignments, not self-implemented directly — see that file's
 "Execution mode" note.
+
+Phase 19's code is complete and `hypp-cli:compileKotlinMacosArm64` succeeds, but linking
+(`linkReleaseExecutableMacosArm64`) and therefore running the binary against a corpus fixture is
+blocked in this environment: only Xcode Command Line Tools are installed, and Kotlin/Native's
+macOS/iOS toolchain hard-requires a full `Xcode.app` (`xcrun xcodebuild -version` must succeed).
+See `doc/progress/phase-19-macos-arm64.md` for the full investigation. `doc/PLAN-12-19.md`'s
+follow-on plan is **not yet** being called complete — the last phase's "Done" bar (produce and run
+a real native binary) hasn't been met; once Xcode is installed and the binary verified, this row
+and this note should be updated to green and the plan marked complete, matching the convention
+already used for the original 11-phase `doc/PLAN.md` below.
 
 ## Post-plan follow-ups (2026-08-15)
 
