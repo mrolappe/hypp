@@ -22,11 +22,10 @@ kotlin {
     }
 }
 
-// No Main class exists yet (Phase 16 adds one) — this just proves the fat-jar
-// task definition is valid and doesn't break `build`. kotlin-stdlib and hypp-jvm
-// (dependency-free) are the only runtime deps, so Shadow would be overkill.
+// kotlin-stdlib and hypp-jvm (dependency-free) are the only runtime deps, so Shadow would be
+// overkill for merging them into a runnable jar.
 val fatJar by tasks.registering(Jar::class) {
-    archiveClassifier.set("all")
+    archiveFileName.set("hypp-cli-all.jar")
     val jvmJar = tasks.named<Jar>("jvmJar")
     dependsOn(jvmJar)
     from({ zipTree(jvmJar.get().archiveFile.get()) })
@@ -36,4 +35,21 @@ val fatJar by tasks.registering(Jar::class) {
             .map { if (it.isDirectory) it else zipTree(it) }
     })
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes("Main-Class" to "de.rholambdapi.hypp.cli.MainKt")
+    }
+}
+
+tasks.register<JavaExec>("run") {
+    dependsOn(fatJar)
+    mainClass.set("de.rholambdapi.hypp.cli.MainKt")
+    classpath = files(fatJar.get().outputs.files)
+    args = (project.findProperty("args") as String?)?.split(" ") ?: emptyList()
+}
+
+// Phase 16b: the fat jar smoke test (FatJarSmokeTest.kt) runs the built jar out-of-process, so it
+// needs `fatJar` to have run first — part of normal jvmTest/check, unlike the root project's
+// opt-in corpusSweep.
+tasks.named("jvmTest") {
+    dependsOn(fatJar)
 }
