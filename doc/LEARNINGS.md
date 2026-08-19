@@ -390,3 +390,31 @@ lesson.
   many *documents* too, or concentrated in a near-single source — the two have very different
   implications for whether modeling the gap is worth it (three real documents to build a feature
   against, here, not sixty independent anomalies each needing separate investigation).
+
+## Phase 15
+
+- **A renderer that flattens untrusted document text straight into terminal escape sequences is a
+  terminal-escape-injection vector, not just a formatting choice.** `AnsiRenderer` wrote
+  `node.name` and span text directly into ANSI-escaped output; since `.hyp` files are untrusted
+  input the CLI opens on request, a crafted node name or span containing a raw `ESC` byte could
+  inject arbitrary escape sequences into whatever terminal displays `dump --format ansi`'s output.
+  Caught by a background security scan of the pushed commit, not by the implementing agent's own
+  tests (which only checked SGR *codes*, not the surrounding text's safety). Fixed by sanitizing
+  C0 control bytes and DEL at the one point document text actually becomes literal terminal bytes
+  (`AnsiRenderer.render`) — not in `styledLines`, which stays a faithful unsanitized intermediate
+  for a hypothetical future TUI consumer. Lesson: any renderer whose *output bytes* are the actual
+  terminal/protocol stream (ANSI, not HTML/Markdown text that some other layer will escape or
+  sandbox before display) needs its own sanitization pass against document-sourced text, and that
+  needs calling out explicitly in the task brief next time — it wasn't, and got missed.
+- **Isolated `git worktree`s let parallel sub-agents both edit and run builds in the same repo
+  without a coordination protocol.** Wave-1/wave-2 agents ran genuinely concurrently, each in its
+  own worktree, each free to `git add`/`commit`/run Gradle without touching the other's staging
+  area or `build/` output. The coordinating session merged each branch into `main` sequentially,
+  rebuilt once per wave, and only pushed after a clean build — cheaper than either serializing the
+  agents or trusting concurrent commits/pushes to the same shared checkout to not race.
+- **A sub-agent interrupted mid-task (e.g. a session-limit cutoff) doesn't mean the work is lost —
+  check the worktree before re-running anything.** One wave-2 agent was cut off after committing
+  its first piece but before committing its second, already-correct, already-passing piece. Reading
+  the worktree directly (`git status`, the actual file contents, a fresh build) confirmed the work
+  was done and correct; finishing with a plain `git commit` there was far cheaper than re-dispatching
+  the whole task and re-deriving already-good output.
