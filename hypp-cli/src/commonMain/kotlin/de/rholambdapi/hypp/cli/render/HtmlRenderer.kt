@@ -14,9 +14,10 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 class HtmlRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : Renderer {
     @OptIn(ExperimentalEncodingApi::class)
     override fun render(document: HypDocument): String = buildString {
-        appendLine("<!doctype html><html><body>")
+        appendLine("<!doctype html><html><head><meta charset=\"utf-8\"></head><body>")
         for (node in document.nodes) {
-            append("<h2>").append(HtmlSpans.escapeHtml(node.name)).appendLine("</h2>")
+            append("<h2 id=\"").append(node.index.value).append("\">")
+            append(HtmlSpans.escapeHtml(node.name)).appendLine("</h2>")
             for (graphic in node.graphics) {
                 if (graphic !is Graphic.Image) continue
                 val image = document.image(graphic.imageIndex) ?: continue

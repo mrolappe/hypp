@@ -76,7 +76,7 @@ class MarkupSyntaxTest {
         italicOpen = "_", italicClose = "_",
         underlineOpen = "++", underlineClose = "++",
         link = { label, target -> "[$label](#$target)" },
-        heading = { level, text -> "#".repeat(level) + " " + text },
+        heading = { level, text, _ -> "#".repeat(level) + " " + text },
         escape = { it.replace("*", "\\*") },
     )
 
@@ -113,6 +113,14 @@ class MarkupSyntaxTest {
             nodes = emptyList(), images = emptyList(), diagnostics = emptyList(),
         )
         assertEquals("", renderMarkup(empty, syntax))
+    }
+
+    @Test
+    fun headingReceivesNodeIndex() {
+        val indexingSyntax = syntax.copy(heading = { level, text, index -> "H$index:" + "#".repeat(level) + " " + text })
+        val rendered = renderMarkup(document, indexingSyntax)
+        assertTrue(rendered.contains("H0:## Intro"))
+        assertTrue(rendered.contains("H1:## Second"))
     }
 
     @Test

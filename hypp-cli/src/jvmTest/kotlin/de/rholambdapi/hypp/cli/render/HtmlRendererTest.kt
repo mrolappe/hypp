@@ -28,11 +28,12 @@ class HtmlRendererTest {
         val document = Corpus.open("textattr")
         val html = HtmlRenderer().render(document)
 
-        assertTrue(html.startsWith("<!doctype html><html><body>"))
+        assertTrue(html.startsWith("<!doctype html><html><head><meta charset=\"utf-8\"></head><body>"))
         assertTrue(html.trim().endsWith("</body></html>"))
 
         for (node in document.nodes) {
-            assertTrue(html.contains("<h2>${HtmlSpans.escapeHtml(node.name)}</h2>"), "missing h2 for ${node.name}")
+            val expectedH2 = "<h2 id=\"${node.index.value}\">${HtmlSpans.escapeHtml(node.name)}</h2>"
+            assertTrue(html.contains(expectedH2), "missing h2 for ${node.name}")
             for (line in node.lines) {
                 val expectedP = "<p>" + line.spans.joinToString("") { HtmlSpans.renderSpan(it) } + "</p>"
                 assertTrue(html.contains(expectedP), "expected to find $expectedP")

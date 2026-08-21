@@ -28,4 +28,17 @@ class OrgRendererTest {
         assertTrue(output.contains("]["), "Should contain link separator")
         assertTrue(output.contains("]]"), "Should contain link closing")
     }
+
+    @Test
+    fun everyNodeGetsACustomIdMatchingItsIndex() {
+        val document = Corpus.open("textattr")
+        val output = OrgRenderer.render(document)
+
+        for (node in document.nodes) {
+            assertTrue(
+                output.contains(":CUSTOM_ID: ${node.index.value}"),
+                "missing CUSTOM_ID for node ${node.index.value} (${node.name})",
+            )
+        }
+    }
 }

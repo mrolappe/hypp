@@ -11,7 +11,11 @@ object OrgRenderer : Renderer {
         underlineOpen = "_",
         underlineClose = "_",
         link = { label, target -> "[[#$target][$label]]" },
-        heading = { level, text -> "*".repeat(level) + " " + text },
+        // Org resolves a `[[#id]]` fuzzy link against a heading's :CUSTOM_ID: property, so the
+        // property drawer right after the heading line is what makes the link above resolve.
+        heading = { level, text, index ->
+            "*".repeat(level) + " " + text + "\n:PROPERTIES:\n:CUSTOM_ID: $index\n:END:"
+        },
         escape = { text ->
             // ponytail: word-boundary emphasis detection simplified to leading-char escaping only;
             // proper implementation would check word boundaries per Org spec if needed

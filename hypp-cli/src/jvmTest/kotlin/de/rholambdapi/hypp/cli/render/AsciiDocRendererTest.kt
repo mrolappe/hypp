@@ -28,4 +28,17 @@ class AsciiDocRendererTest {
         assertTrue(output.contains("link:#"), "Should contain link: prefix with fragment")
         assertTrue(output.contains("["), "Should contain link label brackets")
     }
+
+    @Test
+    fun everyNodeGetsAnAnchorMatchingItsIndex() {
+        val document = Corpus.open("textattr")
+        val output = AsciiDocRenderer.render(document)
+
+        for (node in document.nodes) {
+            assertTrue(
+                output.contains("[#${node.index.value}]"),
+                "missing block anchor for node ${node.index.value} (${node.name})",
+            )
+        }
+    }
 }

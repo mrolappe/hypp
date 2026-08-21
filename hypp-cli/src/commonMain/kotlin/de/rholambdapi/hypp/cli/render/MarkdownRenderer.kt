@@ -11,7 +11,10 @@ object MarkdownRenderer : Renderer {
         underlineOpen = "<u>",
         underlineClose = "</u>",
         link = { label, target -> "[$label](#$target)" },
-        heading = { level, text -> "#".repeat(level) + " " + text },
+        // GFM/CommonMark headings auto-slug their anchor from the heading text, not an arbitrary
+        // id, so `[label](#0)` needs an explicit raw-HTML anchor (permitted inline in both
+        // dialects) rather than relying on the heading's own generated fragment.
+        heading = { level, text, index -> "<a id=\"$index\"></a>\n" + "#".repeat(level) + " " + text },
         escape = { text ->
             text.replace("\\", "\\\\")
                 .replace("`", "\\`")

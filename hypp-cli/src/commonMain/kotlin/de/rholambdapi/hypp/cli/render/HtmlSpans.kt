@@ -1,5 +1,6 @@
 package de.rholambdapi.hypp.cli.render
 
+import de.rholambdapi.hypp.NodeIndex
 import de.rholambdapi.hypp.Span
 import de.rholambdapi.hypp.TextStyle
 
@@ -8,11 +9,16 @@ import de.rholambdapi.hypp.TextStyle
  * same rules, shared by every renderer that needs HTML-shaped span markup.
  */
 object HtmlSpans {
-    fun renderSpan(span: Span): String = buildString {
+    /**
+     * [linkHref] defaults to a same-page fragment (`#<index>`), correct for [HtmlRenderer]'s
+     * single-page output where every node has a matching `id`. [EpubRenderer] overrides it to a
+     * cross-file href, since each node there is its own XHTML document.
+     */
+    fun renderSpan(span: Span, linkHref: (NodeIndex) -> String = { "#${it.value}" }): String = buildString {
         val link = span.link
         val text = escapeHtml(span.text)
         if (link != null) {
-            append("<a href=\"#").append(link.target.value).append("\">").append(text).append("</a>")
+            append("<a href=\"").append(linkHref(link.target)).append("\">").append(text).append("</a>")
             return@buildString
         }
         val style = span.style

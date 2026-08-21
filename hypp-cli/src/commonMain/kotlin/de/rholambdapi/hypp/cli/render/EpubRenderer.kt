@@ -46,7 +46,10 @@ class EpubRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
         appendLine("<h1>$name</h1>")
         for (line in node.lines) {
             append("<p>")
-            for (span in line.spans) append(HtmlSpans.renderSpan(span))
+            // Each node is its own XHTML document here, unlike HtmlRenderer's single page, so an
+            // internal link must cross files (node-<target>.xhtml) rather than jump to a same-page
+            // fragment that nothing in this file would define anyway.
+            for (span in line.spans) append(HtmlSpans.renderSpan(span) { target -> "node-${target.value}.xhtml" })
             appendLine("</p>")
         }
         appendLine("</body>")

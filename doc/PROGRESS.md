@@ -46,6 +46,39 @@ is green end to end, including this new task. `doc/PLAN-12-19.md`'s follow-on pl
 is now **complete**. See `doc/progress/phase-19-macos-arm64.md`'s "Finished" section for the full
 writeup.
 
+## Post-plan-12-19 follow-up (2026-08-21): local-link and encoding bugs across all renderers
+
+Manual eyeballing of the real `macosArm64` `dump --format html` output (produced while closing
+Phase 19) surfaced three issues, investigated and two fixed same round:
+
+1. **Not a bug**: the character before bullet points is `·` (U+00B7 MIDDLE DOT), correctly decoded
+   from Atari ST charset byte `0xFA` (`HypCharset.kt`) — the original document's own bullet glyph,
+   confirmed against the standard Atari ST high-ASCII table and this fixture's zero unknown-escape
+   count from the Phase 11 corpus sweep.
+2. **Fixed — mojibake root cause**: `HtmlRenderer` emitted `<!doctype html><html><body>` with no
+   `<head>`/charset declaration, so a browser guessing the wrong encoding for the UTF-8 bytes
+   (`·` = `C2 B7`) renders the classic `Â·` mojibake — matching the "strange character before the
+   bullet" report exactly. Fixed by adding `<meta charset="utf-8">`.
+3. **Fixed — broken internal navigation, systemic across all 5 renderers**: `href="#<target>"`
+   (HTML/Markdown/AsciiDoc/Org) and EPUB's node links referenced `target.value` with no matching
+   anchor ever emitted anywhere. Fixed per-dialect: HTML gets `id="<index>"` on each `<h2>`;
+   Markdown gets an `<a id="<index>"></a>` before each heading (GFM/CommonMark auto-slug from text,
+   not an arbitrary id); AsciiDoc gets an explicit `[#<index>]` block attribute; Org gets a
+   `:PROPERTIES:/:CUSTOM_ID: <index>/:END:` drawer (Org resolves `[[#id]]` against `:CUSTOM_ID:`,
+   not the heading text); EPUB's internal links were retargeted from same-page fragments to
+   cross-file `node-<target>.xhtml` hrefs, since each node is its own XHTML document there.
+   `HtmlSpans.renderSpan` gained an optional `linkHref` hook (default: same-page fragment) so HTML
+   and EPUB share the span-rendering logic while differing only in href shape.
+   `MarkupSyntax.heading` gained an `index: Int` parameter so each dialect can emit its own anchor
+   convention. All changes covered by new tests (`HtmlSpansTest`, `HtmlRendererTest`,
+   `MarkupSyntaxTest`, `MarkdownRendererTest`, `AsciiDocRendererTest`, `OrgRendererTest`,
+   `EpubRendererTest`); `./gradlew clean build` green. Security review: only new interpolation is
+   `NodeIndex.value` (a validated non-negative `Int` from the document's own index table), no new
+   attacker-controlled string reaches any sink — no findings.
+
+Deferred (explicit user decision): a paragraph-reflow option (joining retro-hardwrapped lines back
+into flowing paragraphs) — a separate feature, not done this round.
+
 ## Post-plan follow-ups (2026-08-15)
 
 The plan's 11 phases are done; these are follow-up tasks done afterward, not

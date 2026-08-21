@@ -28,4 +28,17 @@ class MarkdownRendererTest {
         assertTrue(output.contains("["), "Should contain link opening bracket")
         assertTrue(output.contains("](#"), "Should contain link format with fragment")
     }
+
+    @Test
+    fun everyNodeGetsAnAnchorMatchingItsIndex() {
+        val document = Corpus.open("textattr")
+        val output = MarkdownRenderer.render(document)
+
+        for (node in document.nodes) {
+            assertTrue(
+                output.contains("<a id=\"${node.index.value}\"></a>"),
+                "missing anchor for node ${node.index.value} (${node.name})",
+            )
+        }
+    }
 }

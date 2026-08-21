@@ -63,6 +63,13 @@ class HtmlSpansTest {
     }
 
     @Test
+    fun linkSpanWithCustomHref() {
+        val link = Link(kind = LinkKind.LINK, target = NodeIndex(5), lineNumber = null, label = "go")
+        val html = HtmlSpans.renderSpan(Span("go", TextStyle.Normal, link)) { target -> "node-${target.value}.xhtml" }
+        assertEquals("<a href=\"node-5.xhtml\">go</a>", html)
+    }
+
+    @Test
     fun foregroundColoredSpan() {
         assertEquals(
             "<span style=\"color:rgb(255,0,0);\">red</span>",

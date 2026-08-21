@@ -5,6 +5,8 @@ import de.rholambdapi.hypp.HypCharset
 import de.rholambdapi.hypp.HypColor
 import de.rholambdapi.hypp.HypDocument
 import de.rholambdapi.hypp.Line
+import de.rholambdapi.hypp.Link
+import de.rholambdapi.hypp.LinkKind
 import de.rholambdapi.hypp.Node
 import de.rholambdapi.hypp.NodeIndex
 import de.rholambdapi.hypp.NodeKind
@@ -12,6 +14,7 @@ import de.rholambdapi.hypp.Span
 import de.rholambdapi.hypp.TextStyle
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class EpubRendererTest {
@@ -89,6 +92,22 @@ class EpubRendererTest {
         assertTrue(xhtml.contains("<title>A &amp; B</title>"), xhtml)
         assertTrue(xhtml.contains("<h1>A &amp; B</h1>"), xhtml)
         assertTrue(xhtml.contains("<p><b>bold</b></p>"), xhtml)
+    }
+
+    @Test
+    fun internalLinkCrossesToTheTargetNodesOwnFile() {
+        val link = Link(kind = LinkKind.LINK, target = NodeIndex(1), lineNumber = null, label = "Next")
+        val doc = document(
+            listOf(
+                node(0, "Home", listOf(Line(listOf(Span("Next", TextStyle.Normal, link))))),
+                node(1, "Second"),
+            ),
+        )
+
+        val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
+
+        assertTrue(xhtml.contains("<a href=\"node-1.xhtml\">Next</a>"), xhtml)
+        assertFalse(xhtml.contains("href=\"#1\""), "link must not be a same-page fragment: $xhtml")
     }
 
     @Test
