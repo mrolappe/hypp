@@ -23,7 +23,7 @@ of every round.
 | 16 | CLI commands + Round A (JVM fat jar) | green |
 | 17 | CLI Round B (GraalVM native-image) | green |
 | 18 | CLI Round C (`wasmWasi`) | green |
-| 19 | CLI Round D (`macosArm64`) | amber — code green, linking opt-in pending local Xcode install |
+| 19 | CLI Round D (`macosArm64`) | green |
 
 Per-phase detail: `doc/progress/phase-NN-<name>.md`. Phases 12–19 are planned
 in `doc/PLAN-12-19.md` (approved 2026-08-18, not `doc/PLAN.md`'s original
@@ -32,23 +32,19 @@ delegating each step to sub-agents with model overrides per that plan's
 per-step assignments, not self-implemented directly — see that file's
 "Execution mode" note.
 
-Phase 19's code is complete and `hypp-cli:compileKotlinMacosArm64` succeeds, but linking
-(`linkReleaseExecutableMacosArm64`) and therefore running the binary against a corpus fixture is
-blocked in this environment: only Xcode Command Line Tools are installed, and Kotlin/Native's
-macOS/iOS toolchain hard-requires a full `Xcode.app` (`xcrun xcodebuild -version` must succeed).
-See `doc/progress/phase-19-macos-arm64.md` for the full investigation and its "Made opt-in"
-follow-up section. **User decision (2026-08-19): rather than install Xcode, made the
-`macosArm64` link tasks opt-in** — `hypp-cli/build.gradle.kts` now guards
-`linkDebugExecutableMacosArm64`/`linkReleaseExecutableMacosArm64` (and the test-link variant)
-with `onlyIf` so they're skipped when pulled in transitively by `build`/`check`, but still run
-normally when invoked directly by name (`./gradlew hypp-cli:linkReleaseExecutableMacosArm64`) —
-this deviates from plan decision 4/13's "first-class target" framing in favor of the same
-"opt-in, not part of build/check" posture Phase 17's `nativeImageCli` already uses. `./gradlew
-hypp-cli:build`/`check` are green again. `doc/PLAN-12-19.md`'s follow-on plan is still **not**
-being called complete — the last phase's real "Done" bar (produce and run a real native binary)
-still hasn't been met; once Xcode is installed and the binary verified, this row and this note
-should be updated to green and the plan marked complete, matching the convention already used for
-the original 11-phase `doc/PLAN.md` below.
+**2026-08-21: Xcode.app installed and its license accepted on this machine — Phase 19 finished for
+real.** The `onlyIf` opt-in guard added 2026-08-19 was deleted (`macosArm64` is a first-class
+target again, same footing as `jvm()`/`wasmWasi()`, matching plan decision 4/13), and
+`linkReleaseExecutableMacosArm64` now succeeds. The real linked binary
+(`hypp-cli/build/bin/macosArm64/releaseExecutable/hypp-cli.kexe`) was run directly (no VM/
+interpreter) against `st-guide_orig_en.hyp`: `dump --format html` produced well-formed HTML with
+embedded base64 PNGs, and `extract-images` wrote all 15 valid PNGs (`file` confirmed), matching the
+JVM/wasmWasi targets' verified counts on the same fixture. A new `macosArm64SmokeTest` Gradle
+`Exec` task (mirroring `wasmWasiSmokeTest`'s idiom, one dev-machine shell script rather than a
+WASI host) now runs both checks automatically and is wired into `check`. `./gradlew clean build`
+is green end to end, including this new task. `doc/PLAN-12-19.md`'s follow-on plan (phases 12–19)
+is now **complete**. See `doc/progress/phase-19-macos-arm64.md`'s "Finished" section for the full
+writeup.
 
 ## Post-plan follow-ups (2026-08-15)
 

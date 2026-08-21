@@ -1,7 +1,9 @@
 # Phase 19 — CLI Round D (`macosArm64`)
 
-**Status: amber — code complete and confirmed to compile; linking/running blocked in this
-environment by a missing full Xcode.app install (only Xcode Command Line Tools are present).**
+**Status: green — Xcode.app installed and licensed 2026-08-21, real binary linked, run against
+corpus fixtures, and covered by an automated `macosArm64SmokeTest` wired into `check`. See
+"Finished" section at the end for the closing writeup; everything above it is the original
+code-complete-but-blocked session, kept for the record.**
 
 ## What was built
 
@@ -184,7 +186,7 @@ the same footing as `jvm()`/`wasmWasi()` — it's now opt-in like GraalVM's nati
 Xcode is later installed on this machine (or CI gains a macOS runner with full Xcode), the guard
 can be deleted to restore first-class status with no other code changes needed.
 
-## Remaining / deferred
+## Remaining / deferred (as of the original 2026-08-19 session — see "Finished" below)
 
 - Install full Xcode.app on this machine (owner decision — multi-GB download, Apple ID sign-in),
   then re-run `linkReleaseExecutableMacosArm64` and exercise the binary against
@@ -195,3 +197,50 @@ can be deleted to restore first-class status with no other code changes needed.
   it into `check`, per the task's guidance to prefer a real automated check over "I ran it once by
   hand" — not done yet since there's nothing to run it against.
 - `linuxX64`/`mingwX64` and any CI cross-compilation matrix remain out of scope (plan decision 13).
+
+## Finished (2026-08-21)
+
+User installed Xcode.app and reported it done. Verification and remaining follow-up:
+
+- **License gate, found and cleared.** `xcrun -f ld` initially failed with "You have not agreed to
+  the Xcode license agreements" even with `Xcode.app` present — a separate gate from the
+  Command-Line-Tools-only blocker this phase originally hit. Not something this session could clear
+  (`sudo xcodebuild -license` needs an interactive terminal/password, refused via a non-interactive
+  `Bash` call with a clear error rather than attempting a workaround). The user ran it directly in
+  their own terminal; `xcrun -f ld` then resolved to
+  `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld`.
+- **Guard removed.** Deleted the `tasks.withType<KotlinNativeLink>().configureEach { onlyIf { ... } }`
+  block and its now-unused `KotlinNativeLink` import from `hypp-cli/build.gradle.kts` — restores
+  `macosArm64` to a first-class target on the default `build`/`check` lifecycle, per the doc's own
+  note that this was the intended outcome once Xcode became available.
+- **Real link succeeded.** `./gradlew hypp-cli:build` now runs `linkDebugExecutableMacosArm64` /
+  `linkReleaseExecutableMacosArm64` / `linkDebugTestMacosArm64` / `macosArm64Test` for real (no
+  longer `SKIPPED`) and reports `BUILD SUCCESSFUL`. `./gradlew clean build` from scratch also green
+  (54 tasks, 21s).
+- **Binary run directly against real corpus fixtures**, confirming the two empirical claims this
+  doc flagged as unverified pending a working link:
+  - `dump src/commonTest/resources/corpus/st-guide_orig_en.hyp --format html` → well-formed HTML
+    (`<!doctype html>` present) with embedded base64-encoded PNG image data — confirms `fun
+    main(args: Array<String>)` does receive real argv on this target, matching the doc's earlier
+    "rests on Kotlin/Native's documented contract, not yet exercised" note.
+  - `extract-images src/commonTest/resources/corpus/st-guide_orig_en.hyp --out <dir>` → 15 files,
+    each confirmed a valid PNG via `file` — matches the count already verified for the JVM target in
+    Phase 16 and the wasmWasi target in Phase 18 on the same fixture (all falling back to the
+    synthetic `image-<index>.png` name, since this fixture's real index-entry names don't survive
+    `sanitizeImageFileName`).
+- **`macosArm64SmokeTest` added**, closing the "Remaining" item above rather than leaving it
+  deferred again: a Gradle `Exec` task in `hypp-cli/build.gradle.kts` that runs the just-linked
+  release binary directly (`sh -c` wrapping two invocations — `dump --format html` then
+  `extract-images` — with the binary path and output dir passed as quoted positional shell
+  arguments, `$1`/`$2`, not string-interpolated into the script body) against
+  `st-guide_orig_en.hyp`, asserting the HTML marker is present and exactly 15 images were
+  extracted. Wired into `check` alongside `wasmWasiSmokeTest`. `dependsOn
+  "linkReleaseExecutableMacosArm64"` by task name (string, since `KotlinNativeLink` is no longer
+  imported) ensures a fresh binary each run.
+- **Security review**: diff is Gradle build config only (guard removal + one new `Exec` task). No
+  attacker-controlled input reaches the new shell script — the fixture path is a fixed literal
+  already committed to the repo, and the only two dynamic values (binary path, output dir) are
+  build-internal Gradle paths passed as properly quoted `$1`/`$2` positional arguments to `sh -c`,
+  not interpolated into the script text, so no injection surface even in principle. No findings.
+- **`doc/PLAN-12-19.md`'s follow-on plan (phases 12–19) is now complete** — `doc/PROGRESS.md`
+  updated to green for this row, with a summary note in that file's per-phase-19 paragraph.
