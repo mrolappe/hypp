@@ -325,3 +325,46 @@ part of the phase roadmap:
    `doc/cli-design-space.md`.
 4. **Library documentation for human and agentic/AI consumers** — see
    `doc/guide/` (`overview.md`, `concepts.md`, `api.md`).
+
+## User-reported EPUB/PDF rendering bugs (2026-08-22): two fixed, one open
+
+Diagnosed from a user's visual comparison of the generated EPUB/PDF against `hypview`'s own
+rendering of `st-guide_orig_en.hyp` ("Main" and "Introduction" nodes). Five symptoms reported,
+tracing back to two root causes plus one open structural gap:
+
+1. **Fixed — `Graphic.Line`'s `height` off-by-one.** `height` is a 1-based row *count*, the same
+   as `Graphic.Box`/`Graphic.RoundedBox`'s (its bounding box is `height` rows tall), not a row
+   *delta*. `VectorGraphic.kt`'s `Graphic.Line.toVectorGraphic()` was passing `height` straight
+   through as the SVG endpoint delta, so every single-row horizontal separator (`height = 1`, the
+   common case — confirmed against 8 of `lines.hyp`'s 10 demo lines and all 15 of "Main"'s TOC
+   separators) rendered as a visible diagonal instead of flat. Fixed by using `height - 1` as the
+   delta; `Reflow.kt`'s row-remapping for `Graphic.Line` brought in line with the same count
+   semantics (it previously used a different off-by-one than Box/RoundedBox, which happened to be
+   self-consistent before this fix but not after).
+2. **Fixed — one `<p>` per text row.** `HtmlRenderer`/`EpubRenderer` wrapped every row of a node's
+   fixed-grid text in its own `<p>...</p>`, stacking a browser/e-reader paragraph margin between
+   every single line — a `.hyp` node's blank lines are already literal blank rows in the grid, so
+   this doubled up on spacing the source file didn't call for. Fixed: a run of rows with no graphic
+   between them now shares one `<p>`, its rows joined by `\n` (preserved by the existing
+   `white-space:pre-wrap` body style); a `<p>` only closes/reopens where a graphic must be
+   interleaved between two rows.
+3. **Open — no horizontal (`x`) offset, no row-overlay.** `Graphic.x` is parsed and carried on
+   every model object but no renderer ever reads it — every decoration renders flush to the left
+   margin regardless of its real column. Worse, a graphic is emitted as its own block-level element
+   *before* the `<p>` for the row it decorates, never layered on top of it — so a `Graphic.Box`
+   meant to visually surround a line of text (e.g. the "Have fun with ST-Guide!!!" box, confirmed
+   in the generated markup: box, then a blank `<p></p>`, then the text, as three separate stacked
+   blocks) can never actually surround it. This is very likely also behind the "extra triangular
+   lines" reported in "Main"'s TOC — an arrow-only decoration meant to sit as a short indent marker
+   at a specific column instead renders as a full-width phantom line in the wrong place. User chose
+   the fix direction: rework `HtmlRenderer`/`EpubRenderer` to lay out each node as a CSS grid (text
+   rows as grid rows) with every graphic absolutely positioned by its real `x`/`y`/`width`/`height`
+   in `ch`/`em` units and layered via `z-index` + the existing `mix-blend-mode:multiply`, instead of
+   the current block-sequential interleaving. Not started — worth a spot-check on Apple
+   Books/Kindle EPUB rendering once built, since `position:absolute` support inside reflowable EPUB
+   content varies by reader.
+
+Commit `8935200` (items 1-2). Verified against the real `st-guide_orig_en.hyp` fixture (not just
+unit tests): the line above "But why hypertext?" now renders `y1="0" y2="0"`, and the
+"Introduction"/"Main" nodes' paragraph spacing collapsed to match the source file's own blank-line
+spacing.
