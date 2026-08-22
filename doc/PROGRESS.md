@@ -79,6 +79,38 @@ Phase 19) surfaced three issues, investigated and two fixed same round:
 Deferred (explicit user decision): a paragraph-reflow option (joining retro-hardwrapped lines back
 into flowing paragraphs) — a separate feature, not done this round.
 
+## Post-plan-12-19 follow-up (2026-08-22): EPUB image embedding, `--reflow`, title/author metadata
+
+Three changes, all covered by new tests and `./gradlew clean build` green on both `hypp` and
+`hypp-cli` (JVM/macosArm64/wasmWasi):
+
+1. **EPUB image embedding** (previously deferred, `EpubRenderer`'s `imageEncoder` was an unused
+   placeholder). Images referenced by any node's `Graphic.Image` are now encoded once each (deduped
+   by image index) into separate `OEBPS/images/img-<index>.png` files with their own manifest
+   `<item>` — the spec-idiomatic, best-e-reader-compatibility shape, over inlining as XHTML data
+   URIs (deliberate choice over `HtmlRenderer`'s approach, per user decision this round).
+2. **Paragraph-reflow option, done** (the item deferred above). `hypp-cli/.../cli/Reflow.kt`
+   joins hard-wrapped lines back into paragraphs: a blank line or a bullet-marked line (`"· ..."`)
+   never merges with a neighbor, everything else in a run gets joined with a plain space `Span`.
+   Implemented once as a shared `HypDocument -> HypDocument` preprocessing step (per user decision),
+   applied in `Commands.dump` ahead of every format via a new `--reflow` CLI flag, not duplicated
+   per-renderer.
+3. **EPUB title/author, previously hardcoded to `"hypp export"` with no author** (user report: doc
+   title/author wrong/unset). Extended headers id 1 (`@database`) and id 5 (`@author`) — documented
+   in `hyp.h` as `HYP_EXTH_DATABASE`/`HYP_EXTH_AUTHOR` but previously only captured as
+   `ExtendedHeader.Unknown` — are now modeled as `ExtendedHeader.Database`/`Author` (same pattern as
+   `Charset`/`Default`) and exposed as `HypDocument.title`/`author`. `EpubRenderer`'s `content.opf`
+   derives `<dc:title>` from `document.title`, falling back to the first node's name and finally to
+   `"hypp export"` when absent; `<dc:creator>` is emitted only when `document.author` is present.
+   Both go through the existing `HtmlSpans.escapeHtml` (XML text-content escaping, same sink as
+   every other document-derived string in this renderer). Golden JSON fixtures for
+   `hcp_orig_en`/`st_guide_orig_en` regenerated to reflect the new `ExtendedHeader` variants.
+
+Security review (both changes): no findings — image filenames key off the numeric `ImageNode.index`
+(not the attacker-controlled `image.name`, unlike `extractImages`' `sanitizeImageFileName` sink), and
+title/author reuse the same escaping already applied to every other document-derived string reaching
+this renderer's XML output.
+
 ## Post-plan follow-ups (2026-08-15)
 
 The plan's 11 phases are done; these are follow-up tasks done afterward, not
