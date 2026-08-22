@@ -23,6 +23,21 @@ import kotlin.test.assertTrue
  * six carries an image).
  */
 class HtmlRendererTest {
+    /**
+     * Rows with no graphic between them share one `<p>`, joined by `\n` (relying on
+     * [HTML_BODY_STYLE]'s `white-space:pre-wrap`) instead of one `<p>` per row — mirrors
+     * [HtmlRenderer]'s grouping rather than asserting a fixed one-`<p>`-per-row shape.
+     */
+    private fun expectedParagraphs(node: de.rholambdapi.hypp.Node): List<String> {
+        val graphicRows = node.graphics.mapTo(mutableSetOf()) { it.y.coerceIn(0, node.lines.size) }
+        val paragraphs = mutableListOf<MutableList<String>>()
+        node.lines.forEachIndexed { index, line ->
+            val text = line.spans.joinToString("") { HtmlSpans.renderSpan(it) }
+            if (index in graphicRows || paragraphs.isEmpty()) paragraphs += mutableListOf(text) else paragraphs.last() += text
+        }
+        return paragraphs.map { "<p>" + it.joinToString("\n") + "</p>" }
+    }
+
     @Test
     fun rendersTextattrStructurally() {
         val document = Corpus.open("textattr")
@@ -31,16 +46,16 @@ class HtmlRendererTest {
         assertTrue(html.startsWith("<!doctype html><html><head><meta charset=\"utf-8\"><style>body{$HTML_BODY_STYLE}</style></head><body>"))
         assertTrue(html.trim().endsWith("</body></html>"))
 
+        var expectedPCount = 0
         for (node in document.nodes) {
             val expectedH2 = "<h2 id=\"${node.index.value}\">${HtmlSpans.escapeHtml(node.name)}</h2>"
             assertTrue(html.contains(expectedH2), "missing h2 for ${node.name}")
-            for (line in node.lines) {
-                val expectedP = "<p>" + line.spans.joinToString("") { HtmlSpans.renderSpan(it) } + "</p>"
+            for (expectedP in expectedParagraphs(node)) {
                 assertTrue(html.contains(expectedP), "expected to find $expectedP")
+                expectedPCount++
             }
         }
 
-        val expectedPCount = document.nodes.sumOf { it.lines.size }
         assertEquals(expectedPCount, Regex("<p>").findAll(html).count())
     }
 

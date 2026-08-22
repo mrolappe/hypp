@@ -71,15 +71,23 @@ class EpubRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
             HtmlSpans.vectorGraphicMarkup(graphics)?.let(::appendLine)
         }
 
+        // A run of rows with no graphic between them stays one <p>, its rows joined by `\n`
+        // (preserved by HTML_BODY_STYLE's white-space:pre-wrap) — one <p> per row would give
+        // every row its own e-reader paragraph margin, inflating line spacing past the source
+        // file's own blank-line spacing.
+        var paragraphOpen = false
         node.lines.forEachIndexed { index, line ->
-            emitGraphics(index)
-            append("<p>")
+            if (graphicsByRow.containsKey(index)) {
+                if (paragraphOpen) { appendLine("</p>"); paragraphOpen = false }
+                emitGraphics(index)
+            }
+            if (paragraphOpen) append("\n") else { append("<p>"); paragraphOpen = true }
             // Each node is its own XHTML document here, unlike HtmlRenderer's single page, so an
             // internal link must cross files (node-<target>.xhtml) rather than jump to a same-page
             // fragment that nothing in this file would define anyway.
             for (span in line.spans) append(HtmlSpans.renderSpan(span) { target -> "node-${target.value}.xhtml" })
-            appendLine("</p>")
         }
+        if (paragraphOpen) appendLine("</p>")
         emitGraphics(node.lines.size)
 
         appendLine("</body>")

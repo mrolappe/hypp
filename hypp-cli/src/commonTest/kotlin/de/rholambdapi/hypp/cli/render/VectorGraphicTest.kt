@@ -14,9 +14,17 @@ class VectorGraphicTest {
         val vector = line.toVectorGraphic()
 
         assertEquals(-10, vector.dx)
-        assertEquals(3, vector.dy)
+        assertEquals(2, vector.dy) // height is a 1-based row count (like Box); dy is the endpoint delta within it
         assertEquals(true, vector.arrowAtStart)
         assertEquals(false, vector.arrowAtEnd)
+    }
+
+    @Test
+    fun singleRowLineIsPerfectlyFlat() {
+        // height=1 means "1 row tall", same as a Box's height=1 — the slope endpoint must be
+        // dy=0, not dy=1, or a purely horizontal separator renders as a visible diagonal.
+        val line = Graphic.Line(x = 0, y = 0, width = 40, height = 1, arrowAtStart = false, arrowAtEnd = false, lineStyle = 0)
+        assertEquals(0, line.toVectorGraphic().dy)
     }
 
     @Test

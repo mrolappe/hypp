@@ -43,8 +43,14 @@ private val LINE_STYLE_DASH: Map<Int, List<Int>?> = mapOf(
     7 to listOf(1, 1), // dotted
 )
 
+/**
+ * [Graphic.Line.height], like [Graphic.Box]/[Graphic.RoundedBox]'s, is a 1-based row *count* (its
+ * bounding box is `height` rows tall) — not a row delta. The rendered slope only spans
+ * `height - 1` rows within that box, so a single-row line (`height = 1`, the common case for a
+ * plain horizontal separator) is perfectly flat (`dy = 0`) rather than visibly diagonal.
+ */
 fun Graphic.Line.toVectorGraphic(): VectorGraphic.Line =
-    VectorGraphic.Line(dx = width, dy = height, arrowAtStart = arrowAtStart, arrowAtEnd = arrowAtEnd, dash = LINE_STYLE_DASH[lineStyle])
+    VectorGraphic.Line(dx = width, dy = (height - 1).coerceAtLeast(0), arrowAtStart = arrowAtStart, arrowAtEnd = arrowAtEnd, dash = LINE_STYLE_DASH[lineStyle])
 
 fun Graphic.Box.toVectorGraphic(): VectorGraphic.Box =
     VectorGraphic.Box(widthCells = width, heightCells = height, cornerRadiusCells = 0.0, fillLevel = fillPattern.coerceIn(0, 8))

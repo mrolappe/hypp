@@ -112,8 +112,11 @@ class CommandsTest {
         val withoutReflow = dump(document, "html", out = null, renderers, archiveRenderers, ::zip)
         val withReflow = dump(document, "html", out = null, renderers, archiveRenderers, ::zip, reflowParagraphs = true)
 
-        assertEquals(2, Regex("<p>").findAll(withoutReflow.stdout).count())
+        // Both rows share one <p> either way (no graphic sits between them) — reflow's own effect
+        // is joining their *text* with a space instead of a newline, not changing the <p> count.
+        assertEquals(1, Regex("<p>").findAll(withoutReflow.stdout).count())
         assertEquals(1, Regex("<p>").findAll(withReflow.stdout).count())
+        assertTrue(withoutReflow.stdout.contains("<p>wrapped\ntext.</p>"))
         assertTrue(withReflow.stdout.contains("<p>wrapped text.</p>"))
     }
 

@@ -227,6 +227,26 @@ class EpubRendererTest {
     }
 
     @Test
+    fun consecutiveTextRowsShareOneParagraphSeparatedByNewline() {
+        val doc = document(
+            listOf(
+                node(
+                    0,
+                    "Home",
+                    lines = listOf(
+                        Line(listOf(Span("First", TextStyle.Normal))),
+                        Line(listOf(Span("Second", TextStyle.Normal))),
+                    ),
+                ),
+            ),
+        )
+
+        val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
+
+        assertTrue(xhtml.contains("<p>First\nSecond</p>"), xhtml)
+    }
+
+    @Test
     fun controlCharacterInNodeTextDoesNotBreakXhtml() {
         val doc = document(
             listOf(node(0, "Home", listOf(Line(listOf(Span("Control - ${Char(0x03)} !", TextStyle.Normal)))))),

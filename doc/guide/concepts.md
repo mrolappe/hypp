@@ -122,11 +122,12 @@ fidelity fixes" entry):
   `Reflow.kt` handles this for its own `--reflow` paragraph-joining
   transform: `reflowWithRowMap` returns the original-row → new-row mapping
   alongside the reflowed lines, and `Graphic.remappedTo` carries every
-  graphic's `y` (and, for a graphic that spans multiple rows — a
-  `Graphic.Box`/`Graphic.RoundedBox`'s `height`, a `Graphic.Line`'s `dy`
-  — its row *span*, not just its start row) forward through that mapping
-  rather than leaving it stale. Any future row-count-changing transform
-  needs the same kind of mapping, not just a straight index copy.
+  graphic's `y` (and, for a graphic that spans multiple rows — every
+  `Graphic` type's `height`, a 1-based row *count* including
+  `Graphic.Line`'s — its row *span*, not just its start row) forward
+  through that mapping rather than leaving it stale. Any future
+  row-count-changing transform needs the same kind of mapping, not just a
+  straight index copy.
 
 ## Styling is absolute, not incremental
 

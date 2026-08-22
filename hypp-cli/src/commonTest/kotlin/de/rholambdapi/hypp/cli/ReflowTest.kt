@@ -184,7 +184,7 @@ class ReflowTest {
 
     @Test
     fun reflowShrinksALineWhoseEndpointsCollapseIntoOneReflowedRow() {
-        val rule = Graphic.Line(x = 0, y = 0, width = 10, height = 2, arrowAtStart = false, arrowAtEnd = false, lineStyle = 0)
+        val rule = Graphic.Line(x = 0, y = 0, width = 10, height = 3, arrowAtStart = false, arrowAtEnd = false, lineStyle = 0)
         val doc = HypDocument(
             header = Header(itableSize = 0, itableCount = 0, compilerVersion = 0, compilerOs = 0),
             extendedHeaders = emptyList(),
@@ -200,7 +200,7 @@ class ReflowTest {
                     crossReferences = emptyList(),
                     dataBlocks = emptyList(),
                     objectTable = emptyList(),
-                    // Rows 0-2 (the line's start row 0 through end row y+height=2) all merge into one row.
+                    // Rows 0-2 (the line's start row 0 through end row y+height-1=2) all merge into one row.
                     lines = listOf(line("First"), line("second"), line("third.")),
                 ),
             ),
@@ -212,6 +212,6 @@ class ReflowTest {
 
         val remapped = result.nodes.single().graphics.single() as Graphic.Line
         assertEquals(0, remapped.y)
-        assertEquals(0, remapped.height)
+        assertEquals(1, remapped.height)
     }
 }
