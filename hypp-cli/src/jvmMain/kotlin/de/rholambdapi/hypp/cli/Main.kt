@@ -44,6 +44,7 @@ fun main(args: Array<String>) {
             renderers = defaultRenderers(ImageIoPngEncoder),
             archiveRenderers = defaultArchiveRenderers(ImageIoPngEncoder),
             zip = ::zip,
+            reflowParagraphs = command.reflow,
         )
         is Command.Validate -> validate(document, command.strict)
         is Command.Inspect -> inspect(document)

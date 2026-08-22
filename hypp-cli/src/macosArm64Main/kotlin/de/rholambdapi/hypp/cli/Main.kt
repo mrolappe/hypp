@@ -48,6 +48,7 @@ fun main(args: Array<String>) {
             renderers = defaultRenderers(),
             archiveRenderers = emptyMap(),
             zip = { error("epub not supported on macosArm64") },
+            reflowParagraphs = command.reflow,
         )
         is Command.Validate -> validate(document, command.strict)
         is Command.Inspect -> inspect(document)

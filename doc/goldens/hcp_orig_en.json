@@ -7,14 +7,12 @@
   },
   "extendedHeaders": [
     {
-      "kind": "Unknown",
-      "id": 1,
-      "data": "48435020446f63756d656e746174696f6e00"
+      "kind": "Database",
+      "name": "HCP Documentation"
     },
     {
-      "kind": "Unknown",
-      "id": 5,
-      "data": "482e57656574732c432e57656d70653b205472616e3a20502e576573742f4a2e436f6e6e6f720000"
+      "kind": "Author",
+      "name": "H.Weets,C.Wempe; Tran: P.West/J.Connor"
     },
     {
       "kind": "Unknown",

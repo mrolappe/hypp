@@ -41,7 +41,11 @@ fun main(args: Array<String>) {
         }
     }
     val result = when (command) {
-        is Command.Dump -> dump(document, command.format, command.out, defaultRenderers(), emptyMap(), zip = { error("epub not supported on wasmWasi") })
+        is Command.Dump -> dump(
+            document, command.format, command.out, defaultRenderers(), emptyMap(),
+            zip = { error("epub not supported on wasmWasi") },
+            reflowParagraphs = command.reflow,
+        )
         is Command.Validate -> validate(document, command.strict)
         is Command.Inspect -> inspect(document)
         is Command.ExtractImages -> extractImages(document, command.out, StoredPngEncoder)

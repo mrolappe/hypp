@@ -44,6 +44,18 @@ class ArgParserTest {
     }
 
     @Test
+    fun dumpWithReflowFlag() {
+        val cmd = parseArgs(arrayOf("dump", "test.hyp", "--reflow"))
+        assertEquals(Command.Dump("test.hyp", "html", null, reflow = true), cmd)
+    }
+
+    @Test
+    fun dumpWithoutReflowFlagDefaultsToFalse() {
+        val cmd = parseArgs(arrayOf("dump", "test.hyp"))
+        assertEquals(false, (cmd as Command.Dump).reflow)
+    }
+
+    @Test
     fun dumpWithAllFormats() {
         val formats = listOf("html", "markdown", "asciidoc", "org", "ansi", "epub")
         for (format in formats) {

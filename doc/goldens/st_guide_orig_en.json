@@ -7,14 +7,12 @@
   },
   "extendedHeaders": [
     {
-      "kind": "Unknown",
-      "id": 1,
-      "data": "53542d477569646520446f63756d656e746174696f6e0000"
+      "kind": "Database",
+      "name": "ST-Guide Documentation"
     },
     {
-      "kind": "Unknown",
-      "id": 5,
-      "data": "482e57656574732c432e57656d70652c562e4275726767728466202620502e5765737400"
+      "kind": "Author",
+      "name": "H.Weets,C.Wempe,V.Burggrf & P.West"
     },
     {
       "kind": "Unknown",

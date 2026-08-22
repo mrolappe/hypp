@@ -35,7 +35,8 @@ private const val EXIT_USAGE = 2
  * `epub` archive format is always written to [out] (there's no sensible way to print a zip to a
  * terminal) — passing `--format epub` without `--out` is a usage error, not a crash. [zip] is
  * injected because [de.rholambdapi.hypp.cli.render.zip] is jvmMain-only (`java.util.zip`) while
- * this function is commonMain.
+ * this function is commonMain. When [reflowParagraphs] is set, [reflow] runs once up front so
+ * every format (text or archive) sees the same joined-paragraph text.
  */
 fun dump(
     document: HypDocument,
@@ -44,18 +45,21 @@ fun dump(
     renderers: Map<String, Renderer>,
     archiveRenderers: Map<String, ArchiveRenderer>,
     zip: (List<RenderedFile>) -> ByteArray,
+    reflowParagraphs: Boolean = false,
 ): CommandResult {
+    val doc = if (reflowParagraphs) reflow(document) else document
+
     archiveRenderers[format]?.let { archiveRenderer ->
         if (out == null) {
             return CommandResult(exitCode = EXIT_USAGE, stderr = "dump --format $format requires --out\n")
         }
-        val bytes = zip(archiveRenderer.render(document))
+        val bytes = zip(archiveRenderer.render(doc))
         return CommandResult(exitCode = EXIT_OK, files = listOf(OutputFile(out, bytes)))
     }
 
     val renderer = renderers[format]
         ?: return CommandResult(exitCode = EXIT_USAGE, stderr = "unknown format: $format\n")
-    val rendered = renderer.render(document)
+    val rendered = renderer.render(doc)
     return if (out != null) {
         CommandResult(exitCode = EXIT_OK, files = listOf(OutputFile(out, rendered.encodeToByteArray())))
     } else {

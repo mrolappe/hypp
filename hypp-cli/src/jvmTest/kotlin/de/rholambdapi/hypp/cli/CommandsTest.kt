@@ -5,7 +5,12 @@ import de.rholambdapi.hypp.Header
 import de.rholambdapi.hypp.HypCharset
 import de.rholambdapi.hypp.HypDocument
 import de.rholambdapi.hypp.ImageNode
+import de.rholambdapi.hypp.Line
+import de.rholambdapi.hypp.Node
 import de.rholambdapi.hypp.NodeIndex
+import de.rholambdapi.hypp.NodeKind
+import de.rholambdapi.hypp.Span
+import de.rholambdapi.hypp.TextStyle
 import de.rholambdapi.hypp.cli.render.Corpus
 import de.rholambdapi.hypp.cli.render.StoredPngEncoder
 import de.rholambdapi.hypp.cli.render.defaultArchiveRenderers
@@ -75,6 +80,41 @@ class CommandsTest {
         assertTrue(file.bytes.isNotEmpty())
         // local file header signature "PK\x03\x04"
         assertEquals(listOf(0x50, 0x4B, 0x03, 0x04), file.bytes.take(4).map { it.toInt() and 0xFF })
+    }
+
+    @Test
+    fun dumpReflowsParagraphsBeforeRenderingWhenRequested() {
+        val document = HypDocument(
+            header = Header(itableSize = 0, itableCount = 0, compilerVersion = 0, compilerOs = 0),
+            extendedHeaders = emptyList(),
+            entries = emptyList(),
+            charset = HypCharset.Default,
+            nodes = listOf(
+                Node(
+                    index = NodeIndex(0),
+                    name = "Home",
+                    kind = NodeKind.TEXT,
+                    windowTitle = null,
+                    graphics = emptyList(),
+                    crossReferences = emptyList(),
+                    dataBlocks = emptyList(),
+                    objectTable = emptyList(),
+                    lines = listOf(
+                        Line(listOf(Span("wrapped", TextStyle.Normal))),
+                        Line(listOf(Span("text.", TextStyle.Normal))),
+                    ),
+                ),
+            ),
+            images = emptyList(),
+            diagnostics = emptyList(),
+        )
+
+        val withoutReflow = dump(document, "html", out = null, renderers, archiveRenderers, ::zip)
+        val withReflow = dump(document, "html", out = null, renderers, archiveRenderers, ::zip, reflowParagraphs = true)
+
+        assertEquals(2, Regex("<p>").findAll(withoutReflow.stdout).count())
+        assertEquals(1, Regex("<p>").findAll(withReflow.stdout).count())
+        assertTrue(withReflow.stdout.contains("<p>wrapped text.</p>"))
     }
 
     @Test

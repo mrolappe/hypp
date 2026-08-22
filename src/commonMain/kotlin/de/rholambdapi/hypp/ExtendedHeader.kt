@@ -32,4 +32,22 @@ sealed interface ExtendedHeader {
             const val ID = 2
         }
     }
+
+    /** `@database` — id 1, the NUL-terminated description of the hypertext database (its title). */
+    data class Database(val name: String) : ExtendedHeader {
+        override val id: Int get() = ID
+
+        companion object {
+            const val ID = 1
+        }
+    }
+
+    /** `@author` — id 5, the NUL-terminated name(s) of the hypertext's author(s). */
+    data class Author(val name: String) : ExtendedHeader {
+        override val id: Int get() = ID
+
+        companion object {
+            const val ID = 5
+        }
+    }
 }

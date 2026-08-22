@@ -1,9 +1,12 @@
 package de.rholambdapi.hypp.cli.render
 
+import de.rholambdapi.hypp.ExtendedHeader
+import de.rholambdapi.hypp.Graphic
 import de.rholambdapi.hypp.Header
 import de.rholambdapi.hypp.HypCharset
 import de.rholambdapi.hypp.HypColor
 import de.rholambdapi.hypp.HypDocument
+import de.rholambdapi.hypp.ImageNode
 import de.rholambdapi.hypp.Line
 import de.rholambdapi.hypp.Link
 import de.rholambdapi.hypp.LinkKind
@@ -23,26 +26,46 @@ class EpubRendererTest {
     private fun style(attrBits: Int) = TextStyle(attrBits or (HypColor.BLACK.ordinal shl 8) or (HypColor.WHITE.ordinal shl 12))
     private val bold = 1
 
-    private fun node(index: Int, name: String, lines: List<Line> = emptyList()) = Node(
+    private fun node(
+        index: Int,
+        name: String,
+        lines: List<Line> = emptyList(),
+        graphics: List<Graphic> = emptyList(),
+    ) = Node(
         index = NodeIndex(index),
         name = name,
         kind = NodeKind.TEXT,
         windowTitle = null,
-        graphics = emptyList(),
+        graphics = graphics,
         crossReferences = emptyList(),
         dataBlocks = emptyList(),
         objectTable = emptyList(),
         lines = lines,
     )
 
-    private fun document(nodes: List<Node>) = HypDocument(
+    private fun document(
+        nodes: List<Node>,
+        images: List<ImageNode> = emptyList(),
+        extendedHeaders: List<ExtendedHeader> = emptyList(),
+    ) = HypDocument(
         header = Header(itableSize = 0, itableCount = 0, compilerVersion = 0, compilerOs = 0),
-        extendedHeaders = emptyList(),
+        extendedHeaders = extendedHeaders,
         entries = emptyList(),
         charset = HypCharset.Default,
         nodes = nodes,
-        images = emptyList(),
+        images = images,
         diagnostics = emptyList(),
+    )
+
+    private fun image(index: Int, width: Int = 2, height: Int = 2) = ImageNode(
+        index = NodeIndex(index),
+        name = "pic",
+        width = width,
+        height = height,
+        planeCount = 1,
+        planePresent = 1,
+        planeFilled = 0,
+        planeData = byteArrayOf(0xC0.toByte(), 0, 0xC0.toByte(), 0),
     )
 
     @Test
@@ -132,5 +155,86 @@ class EpubRendererTest {
 
         val spineOrder = Regex("itemref idref=\"([^\"]+)\"").findAll(opf).map { it.groupValues[1] }.toList()
         assertEquals(listOf("node-0", "node-1"), spineOrder)
+    }
+
+    @Test
+    fun embedsReferencedImageAsSeparateFileWithManifestEntry() {
+        val pic = image(1)
+        val graphic = Graphic.Image(pic.index, x = 1, y = 0, width = 0, height = 0, ditherMask = null)
+        val doc = document(listOf(node(0, "Home", graphics = listOf(graphic))), images = listOf(pic))
+
+        val files = EpubRenderer().render(doc)
+
+        val imageFile = files.single { it.path == "OEBPS/images/img-1.png" }
+        assertEquals(StoredPngEncoder.encode(pic).toList(), imageFile.bytes.toList())
+
+        val xhtml = files.single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
+        assertTrue(xhtml.contains("<img width=\"2\" height=\"2\" src=\"images/img-1.png\"/>"), xhtml)
+
+        val opf = files.single { it.path == "OEBPS/content.opf" }.bytes.decodeToString()
+        assertTrue(opf.contains("""<item id="img-1" href="images/img-1.png" media-type="image/png"/>"""))
+    }
+
+    @Test
+    fun dedupesTheSameImageReferencedFromTwoNodes() {
+        val pic = image(1)
+        val graphic = Graphic.Image(pic.index, x = 1, y = 0, width = 0, height = 0, ditherMask = null)
+        val doc = document(
+            listOf(node(0, "Home", graphics = listOf(graphic)), node(1, "Again", graphics = listOf(graphic))),
+            images = listOf(pic),
+        )
+
+        val files = EpubRenderer().render(doc)
+
+        assertEquals(1, files.count { it.path == "OEBPS/images/img-1.png" })
+    }
+
+    @Test
+    fun unreferencedImagesAreNotEmbedded() {
+        val doc = document(listOf(node(0, "Home")), images = listOf(image(1)))
+
+        val files = EpubRenderer().render(doc)
+
+        assertFalse(files.any { it.path.startsWith("OEBPS/images/") })
+        val opf = files.single { it.path == "OEBPS/content.opf" }.bytes.decodeToString()
+        assertFalse(opf.contains("img-1"))
+    }
+
+    @Test
+    fun titleAndAuthorAreDerivedFromTheDocumentsExtendedHeaders() {
+        val doc = document(
+            listOf(node(0, "Home")),
+            extendedHeaders = listOf(ExtendedHeader.Database("My Book"), ExtendedHeader.Author("Jane & Doe")),
+        )
+
+        val opf = EpubRenderer().render(doc).single { it.path == "OEBPS/content.opf" }.bytes.decodeToString()
+
+        assertTrue(opf.contains("<dc:title>My Book</dc:title>"), opf)
+        assertTrue(opf.contains("<dc:creator>Jane &amp; Doe</dc:creator>"), opf)
+    }
+
+    @Test
+    fun missingTitleHeaderFallsBackToTheFirstNodesName() {
+        val doc = document(listOf(node(0, "Main Page")))
+
+        val opf = EpubRenderer().render(doc).single { it.path == "OEBPS/content.opf" }.bytes.decodeToString()
+
+        assertTrue(opf.contains("<dc:title>Main Page</dc:title>"), opf)
+    }
+
+    @Test
+    fun missingAuthorHeaderOmitsDcCreator() {
+        val doc = document(listOf(node(0, "Home")))
+
+        val opf = EpubRenderer().render(doc).single { it.path == "OEBPS/content.opf" }.bytes.decodeToString()
+
+        assertFalse(opf.contains("dc:creator"), opf)
+    }
+
+    @Test
+    fun emptyDocumentFallsBackToAGenericTitle() {
+        val opf = EpubRenderer().render(document(emptyList())).single { it.path == "OEBPS/content.opf" }.bytes.decodeToString()
+
+        assertTrue(opf.contains("<dc:title>hypp export</dc:title>"), opf)
     }
 }

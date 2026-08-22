@@ -1,7 +1,7 @@
 package de.rholambdapi.hypp.cli
 
 sealed interface Command {
-    data class Dump(val file: String, val format: String, val out: String?) : Command
+    data class Dump(val file: String, val format: String, val out: String?, val reflow: Boolean = false) : Command
     data class Validate(val file: String, val strict: Boolean) : Command
     data class Inspect(val file: String) : Command
     data class ExtractImages(val file: String, val out: String) : Command
@@ -34,10 +34,12 @@ private fun parseDump(args: List<String>): Command.Dump {
     val file = args[0]
     var format = "html"
     var out: String? = null
+    var reflow = false
 
     var i = 1
     while (i < args.size) {
         when (args[i]) {
+            "--reflow" -> reflow = true
             "--format" -> {
                 i++
                 if (i >= args.size) {
@@ -61,7 +63,7 @@ private fun parseDump(args: List<String>): Command.Dump {
         i++
     }
 
-    return Command.Dump(file, format, out)
+    return Command.Dump(file, format, out, reflow)
 }
 
 private fun parseValidate(args: List<String>): Command.Validate {

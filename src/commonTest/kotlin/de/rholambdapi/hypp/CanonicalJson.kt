@@ -92,6 +92,8 @@ private fun Header.toJson(): Json = obj(
 private fun ExtendedHeader.toJson(): Json = when (this) {
     is ExtendedHeader.Charset -> obj("kind" to str("Charset"), "name" to str(name))
     is ExtendedHeader.Default -> obj("kind" to str("Default"), "name" to str(name))
+    is ExtendedHeader.Database -> obj("kind" to str("Database"), "name" to str(name))
+    is ExtendedHeader.Author -> obj("kind" to str("Author"), "name" to str(name))
     is ExtendedHeader.Unknown -> obj("kind" to str("Unknown"), "id" to num(id), "data" to str(data.toHex()))
 }
 

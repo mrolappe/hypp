@@ -31,6 +31,12 @@ class HypDocument(
         name?.let { n -> entries.indexOfFirst { it.name == n }.takeIf { it >= 0 }?.let(::NodeIndex) }
     }
 
+    /** The hypertext's title, from extended header id 1 (`@database`), or null if absent. */
+    val title: String? by lazy { extendedHeaders.filterIsInstance<ExtendedHeader.Database>().firstOrNull()?.name }
+
+    /** The hypertext's author(s), from extended header id 5 (`@author`), or null if absent. */
+    val author: String? by lazy { extendedHeaders.filterIsInstance<ExtendedHeader.Author>().firstOrNull()?.name }
+
     /**
      * The document's table of contents, rooted at [NodeIndex] 0 and nested via [IndexEntry.toc].
      * A `toc` cycle away from the root (malformed input) is broken silently rather than recursing
@@ -164,6 +170,8 @@ internal fun parseContainer(bytes: ByteArray): RawContainer? {
         extendedHeaders += when (id) {
             ExtendedHeader.Charset.ID -> ExtendedHeader.Charset(data.decodeName())
             ExtendedHeader.Default.ID -> ExtendedHeader.Default(data.decodeName())
+            ExtendedHeader.Database.ID -> ExtendedHeader.Database(data.decodeName())
+            ExtendedHeader.Author.ID -> ExtendedHeader.Author(data.decodeName())
             else -> ExtendedHeader.Unknown(id, data)
         }
     }

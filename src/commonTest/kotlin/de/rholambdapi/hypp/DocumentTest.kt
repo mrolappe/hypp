@@ -64,6 +64,35 @@ class DocumentTest {
     }
 
     @Test
+    fun missingTitleAndAuthorHeadersYieldNull() {
+        val doc = open(TestCorpus.textattr)
+        assertNull(doc.title)
+        assertNull(doc.author)
+    }
+
+    @Test
+    fun databaseAndAuthorHeadersResolveToTitleAndAuthor() {
+        val bytes = buildHyp(
+            entries = listOf(Entry("Main")),
+            extendedHeaders = listOf(
+                ExtendedHeader.Database.ID to cstring("My Book"),
+                ExtendedHeader.Author.ID to cstring("Jane Doe"),
+            ),
+        )
+        val doc = open(bytes)
+        assertEquals("My Book", doc.title)
+        assertEquals("Jane Doe", doc.author)
+    }
+
+    @Test
+    fun stGuideTitleAndAuthorMatchItsRealExtendedHeaders() {
+        val doc = open(TestCorpus.stGuideOrigEn)
+        assertEquals("ST-Guide Documentation", doc.title)
+        assertTrue(doc.author?.startsWith("H.Weets,C.Wempe,V.Burggr") == true)
+        assertTrue(doc.author?.endsWith("f & P.West") == true)
+    }
+
+    @Test
     fun stGuideTableOfContentsNestsSymbolBarAndItsExtraPopupSubgroup() {
         // Ground truth from the real index table (see doc/format-notes.md / session notes): index 5
         // "Symbol bar" groups indices 16..28 via @toc, and within that, index 27 "Extra popup"
