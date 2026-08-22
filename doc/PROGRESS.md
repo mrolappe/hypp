@@ -289,6 +289,27 @@ only a latent spec-conformance gap) hasn't been checked yet.
 Task 2 (the fixed-grid-canvas write-up + multi-row-graphic/reflow row-remapping gap) is still open,
 unchanged by this round.
 
+## Task 2 done: fixed-grid-canvas write-up + multi-row-graphic reflow fix (2026-08-22)
+
+Closes this doc's "Next tasks" task 2 above. Two parts:
+
+1. **Write-up**: new "A node is a fixed-grid canvas, not free text" section in
+   `doc/guide/concepts.md`, naming the pattern generalized across this round's earlier fixes
+   (whitespace-is-data, row-interleaved decorations, row-remapping-on-transform) so a future
+   row-count-changing transform reaches for the same shape instead of re-deriving it.
+2. **Fix**: `Reflow.kt`'s `Graphic.remappedTo` only remapped a graphic's start row (`y`), leaving
+   `height` (a row *count* for `Graphic.Box`/`Graphic.RoundedBox`, a row *delta* `dy` for
+   `Graphic.Line`) unchanged — so a multi-row graphic whose rows all merged into one reflowed
+   paragraph still claimed its old, now-meaningless row span (the `y=55,height=3` `RoundedBox` in
+   the corpus fixture was the motivating case). Fixed by mapping *both* the start row and the
+   graphic's end row (`y + height - 1` for Box/RoundedBox, `y + height` for Line, matching
+   `VectorGraphic.toVectorGraphic`'s dy semantics) through the same `rowMap`, then recomputing
+   `height` from the distance between the two mapped rows instead of copying it through. New tests
+   in `ReflowTest.kt` cover a `Box` and a `Line` each collapsing into a single reflowed row.
+   `./gradlew clean build` green on all three `hypp-cli` targets (`jvm`/`macosArm64`/`wasmWasi`).
+   Security review: no findings — pure in-memory integer arithmetic over already-validated `Graphic`
+   fields, no new I/O or output sink.
+
 ## Post-plan follow-ups (2026-08-15)
 
 The plan's 11 phases are done; these are follow-up tasks done afterward, not

@@ -90,6 +90,44 @@ by the time you see it:
   straddles a style change (a linked span's text *is* the link's label,
   never a mix of linked and unlinked text in one span).
 
+## A node is a fixed-grid canvas, not free text
+
+`node.lines`/`node.graphics` look like two independent lists, but they
+share one coordinate system: every `Graphic`'s `x`/`y` are character-cell
+row/column positions into the *same* grid `node.lines` renders as text.
+Treat a node as a fixed-width character-cell canvas that text and
+graphics both draw onto, not as a text stream with decorations bolted on
+the side — three consequences follow, each a real bug hit and fixed while
+building `hypp-cli`'s renderers (`doc/PROGRESS.md`'s "Root-cause and
+fidelity fixes" entry):
+
+- **Whitespace is data.** Indentation and inter-column gaps are literal
+  runs of space characters positioned by the grid, not incidental
+  formatting a renderer can collapse. A consumer that renders `node.lines`
+  through anything that collapses whitespace or uses a proportional font
+  (HTML's default text flow, a GUI label) will visibly misalign multi-column
+  layouts. `hypp-cli`'s `HtmlSpans.HTML_BODY_STYLE` fixes this with
+  `white-space:pre-wrap;font-family:monospace`.
+- **A graphic is positioned by row, not layered above/below the text.** A
+  `Graphic`'s `y` says which text row it decorates; rendering all graphics
+  as one block before or after the text (instead of interleaved at each
+  graphic's own row) puts every decoration next to the wrong line.
+  `hypp-cli`'s `HtmlSpans.graphicsByRow` buckets graphics by `y` and
+  interleaves each row's markup immediately before that row's text.
+- **A transform that changes row count must carry graphics' positions
+  forward.** Anything that merges, drops, or reorders lines (word-wrap
+  reflow, line-range extraction, a future line-numbering filter) shifts
+  every row after the change point — a `Graphic` left pointing at its
+  pre-transform row now decorates the wrong text. `hypp-cli`'s
+  `Reflow.kt` handles this for its own `--reflow` paragraph-joining
+  transform: `reflowWithRowMap` returns the original-row → new-row mapping
+  alongside the reflowed lines, and `Graphic.remappedTo` carries every
+  graphic's `y` (and, for a graphic that spans multiple rows — a
+  `Graphic.Box`/`Graphic.RoundedBox`'s `height`, a `Graphic.Line`'s `dy`
+  — its row *span*, not just its start row) forward through that mapping
+  rather than leaving it stale. Any future row-count-changing transform
+  needs the same kind of mapping, not just a straight index copy.
+
 ## Styling is absolute, not incremental
 
 A style-change escape in the wire format replaces the *entire* attribute

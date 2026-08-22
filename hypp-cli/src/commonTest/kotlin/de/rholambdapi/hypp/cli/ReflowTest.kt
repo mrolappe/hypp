@@ -145,4 +145,73 @@ class ReflowTest {
         )
         assertEquals(2, (result.nodes.single().graphics.single() as Graphic.Line).y)
     }
+
+    // The bug this guards: a multi-row graphic's `height` (row count for Box/RoundedBox, row
+    // delta for Line) was left unchanged by remapping, so once reflow merged every row the graphic
+    // spanned into one reflowed row, the graphic still claimed its old, now-meaningless row span.
+    @Test
+    fun reflowShrinksAMultiRowBoxThatCollapsesIntoOneReflowedRow() {
+        val box = Graphic.Box(x = 0, y = 0, width = 10, height = 3, fillPattern = 0)
+        val doc = HypDocument(
+            header = Header(itableSize = 0, itableCount = 0, compilerVersion = 0, compilerOs = 0),
+            extendedHeaders = emptyList(),
+            entries = emptyList(),
+            charset = HypCharset.Default,
+            nodes = listOf(
+                Node(
+                    index = NodeIndex(0),
+                    name = "Home",
+                    kind = NodeKind.TEXT,
+                    windowTitle = null,
+                    graphics = listOf(box),
+                    crossReferences = emptyList(),
+                    dataBlocks = emptyList(),
+                    objectTable = emptyList(),
+                    // Rows 0-2 (where the box sits) all merge into a single reflowed row.
+                    lines = listOf(line("First"), line("second"), line("third.")),
+                ),
+            ),
+            images = emptyList(),
+            diagnostics = emptyList(),
+        )
+
+        val result = reflow(doc)
+
+        val remapped = result.nodes.single().graphics.single() as Graphic.Box
+        assertEquals(0, remapped.y)
+        assertEquals(1, remapped.height)
+    }
+
+    @Test
+    fun reflowShrinksALineWhoseEndpointsCollapseIntoOneReflowedRow() {
+        val rule = Graphic.Line(x = 0, y = 0, width = 10, height = 2, arrowAtStart = false, arrowAtEnd = false, lineStyle = 0)
+        val doc = HypDocument(
+            header = Header(itableSize = 0, itableCount = 0, compilerVersion = 0, compilerOs = 0),
+            extendedHeaders = emptyList(),
+            entries = emptyList(),
+            charset = HypCharset.Default,
+            nodes = listOf(
+                Node(
+                    index = NodeIndex(0),
+                    name = "Home",
+                    kind = NodeKind.TEXT,
+                    windowTitle = null,
+                    graphics = listOf(rule),
+                    crossReferences = emptyList(),
+                    dataBlocks = emptyList(),
+                    objectTable = emptyList(),
+                    // Rows 0-2 (the line's start row 0 through end row y+height=2) all merge into one row.
+                    lines = listOf(line("First"), line("second"), line("third.")),
+                ),
+            ),
+            images = emptyList(),
+            diagnostics = emptyList(),
+        )
+
+        val result = reflow(doc)
+
+        val remapped = result.nodes.single().graphics.single() as Graphic.Line
+        assertEquals(0, remapped.y)
+        assertEquals(0, remapped.height)
+    }
 }

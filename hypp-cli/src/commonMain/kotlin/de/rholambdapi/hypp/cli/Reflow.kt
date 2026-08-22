@@ -54,14 +54,35 @@ private fun reflowWithRowMap(lines: List<Line>): ReflowedLines {
 
 internal fun reflowLines(lines: List<Line>): List<Line> = reflowWithRowMap(lines).lines
 
-/** Carries a graphic's row forward through [rowMap] (see [reflowWithRowMap]), clamping an out-of-range row rather than dropping the graphic. */
+private fun mapRow(row: Int, rowMap: IntArray): Int =
+    if (row in rowMap.indices) rowMap[row] else row.coerceIn(0, rowMap.size)
+
+/**
+ * Carries a graphic's row span forward through [rowMap] (see [reflowWithRowMap]), clamping an
+ * out-of-range row rather than dropping the graphic. A [Graphic.Box]/[Graphic.RoundedBox]'s
+ * `height` is a row *count* (`y` to `y + height - 1` inclusive); a [Graphic.Line]'s `height` is a
+ * row *delta* `dy` (`y` to `y + height` inclusive, per [de.rholambdapi.hypp.cli.render.toVectorGraphic]).
+ * Reflow can merge every original row the graphic spans into one reflowed row, so `height` is
+ * recomputed from how far apart the mapped start/end rows land, not copied through unchanged —
+ * otherwise a box that now fits in a single reflowed row would still claim its old, now-meaningless
+ * row count.
+ */
 private fun Graphic.remappedTo(rowMap: IntArray): Graphic {
-    val newY = if (y in rowMap.indices) rowMap[y] else y.coerceIn(0, rowMap.size)
+    val newY = mapRow(y, rowMap)
     return when (this) {
         is Graphic.Image -> Graphic.Image(imageIndex, x, newY, width, height, ditherMask)
-        is Graphic.Line -> copy(y = newY)
-        is Graphic.Box -> copy(y = newY)
-        is Graphic.RoundedBox -> copy(y = newY)
+        is Graphic.Line -> {
+            val newEndRow = mapRow(y + height, rowMap).coerceAtLeast(newY)
+            copy(y = newY, height = newEndRow - newY)
+        }
+        is Graphic.Box -> {
+            val newEndRow = mapRow(y + (height - 1).coerceAtLeast(0), rowMap).coerceAtLeast(newY)
+            copy(y = newY, height = newEndRow - newY + 1)
+        }
+        is Graphic.RoundedBox -> {
+            val newEndRow = mapRow(y + (height - 1).coerceAtLeast(0), rowMap).coerceAtLeast(newY)
+            copy(y = newY, height = newEndRow - newY + 1)
+        }
     }
 }
 
