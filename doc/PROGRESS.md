@@ -111,6 +111,74 @@ Security review (both changes): no findings — image filenames key off the nume
 title/author reuse the same escaping already applied to every other document-derived string reaching
 this renderer's XML output.
 
+## Post-plan-12-19 follow-up (2026-08-22, round 2): EPUB rendering-fidelity bugs vs. hypviewer
+
+User compared the online hypviewer rendering of `st-guide_orig_en.hyp` against `hypp-cli`'s EPUB
+output and reported five issues. Root-caused all five by instrumenting the real parser against the
+corpus fixture (a throwaway `jvmTest`, deleted before commit) rather than guessing, then fixed the
+two that were genuine renderer bugs. `./gradlew allTests` green on `hypp-cli` throughout (JVM,
+`wasmWasi`, `macosArm64`); every generated `.xhtml` in a regenerated `st-guide_orig_en.epub`
+independently re-verified well-formed with Python's `xml.dom.minidom` outside the JVM toolchain too.
+
+1. **Fixed — "PCDATA invalid Char value 3" / apparent truncation.** Root cause: a decoded `.hyp`
+   line can contain a literal C0 control byte (confirmed: `st-guide_orig_en.hyp` node 1
+   "Introduction" has a real byte `0x03` mid-sentence — an Atari-font icon glyph, e.g. a keyboard
+   arrow-key icon, that `HypCharset.AtariSt`'s clean-room table (Wikipedia-sourced, high range
+   0x80-0xFF only — see `doc/PLAN.md`'s locked "spec sources" decision) has no mapping for and so
+   passes through as a raw control character). XML 1.0 forbids raw C0 controls in element content
+   outside tab/LF/CR; `HtmlSpans.escapeHtml` previously only escaped `&<>`, so the byte reached
+   `EpubRenderer`'s strict XHTML unescaped and broke well-formedness — a strict reader (Apple
+   Books/Preview) renders only up to that point, which looks like the document got truncated.
+   `escapeHtml` now maps every such byte to Unicode's own public "Control Pictures" block (U+2400 +
+   code) — always-safe XML content, and a real, independently-citable (unicode.org) standard, not a
+   copy of hypview's own `cp_atari.h` icon table (which the project's clean-room policy places
+   out of bounds, and which is itself platform-inconsistent — its Win32 build maps the same bytes
+   differently — so treating it as *the* spec would have been wrong regardless).
+2. **Fixed — missing small icons before Main's section headers, and the missing rule above
+   "But why hypertext?".** Same root cause, both are `Graphic.Line` records (not images): node 0
+   has 15 of them at specific character-cell `y` rows next to each section header; node 1 has one
+   under its title and one right above "But why hypertext?" (confirmed via the throwaway
+   instrumentation, not assumed). `HtmlRenderer`/`EpubRenderer` only ever handled `Graphic.Image`
+   and silently dropped `Line`/`Box`/`RoundedBox` entirely. Both renderers now bucket a node's
+   graphics by row (`HtmlSpans.graphicsByRow`) and interleave each row's markup right before that
+   row's `<p>`, instead of dumping all graphics before all text. A `Line`/`Box`/`RoundedBox`'s fill
+   pattern and arrow-direction bits have no confirmed visual mapping (`doc/format-notes.md`'s
+   "Line/box/rbox `Data` byte" entry — corpus filenames don't line up with the decoded flags, no
+   rendering oracle exists) — rather than fabricate a specific shape, every such graphic sharing a
+   row collapses into one plain `<hr/>` (`HtmlSpans.nonImageGraphicMarkup`), so the row's decorative
+   intent survives without pretending to know its exact shape. `Box`/`RoundedBox` still render as
+   the same generic rule as `Line` — not the bordered frame they likely represent — since neither
+   the user's report nor the corpus data gave enough to implement that with confidence; flagged as
+   a known remaining gap, not silently dropped.
+3. **Fixed — Main node's two-column layout, indentation and inter-column spacing collapsed.** The
+   `.hyp` format's lines are a fixed-width character-cell grid: indentation and column gaps are
+   literal runs of space characters, not markup. Both renderers' `<body>` now sets
+   `white-space:pre-wrap;font-family:monospace` (`HtmlSpans.HTML_BODY_STYLE`, one shared constant)
+   instead of relying on the reader's default whitespace-collapsing/proportional-font rendering.
+4. **Not a renderer bug, but a real bug found while fixing #2**: `--reflow` (`Commands.dump` wiring
+   was already correct) joins hard-wrapped lines into fewer paragraphs, which shifts every row
+   number after the join point — and `reflow()` was leaving `Node.graphics`' row-based `y`
+   untouched, so combining `--reflow` with the new row-interleaving from #2 silently misplaced
+   every graphic. Fixed in `Reflow.kt`: `reflowWithRowMap` now also returns the original-row →
+   reflowed-row mapping, and `reflow()` carries every graphic forward to its paragraph's new row
+   via `Graphic.remappedTo` (`.copy(y = ...)` for `Line`/`Box`/`RoundedBox`, a reconstructed
+   `Graphic.Image` since it isn't a data class) before that mapping was in place, verified by
+   regenerating the real corpus EPUB with `--reflow` and confirming the rule above "But why
+   hypertext?" landed on the right paragraph both with and without the flag.
+5. **Not fixed, flagged to the user instead of guessed at**: the user's other observation for the
+   "Introduction" node's top rule and the Main node's arrow markers looking like small icons rather
+   than a rule in hypviewer specifically — hypview's own reference renderers (HTML/GTK/PDF/XML, per
+   research into `~/git-repos/hypview`, constants/behavior only, no code lifted — clean-room
+   boundary respected) all draw these as real vector graphics (Cairo strokes, HTML5 canvas+JS, PDF
+   vector ops), which this project's plain reflowable-text renderers have no equivalent for and
+   aren't going to grow one for; the generic `<hr/>` from fix #2 is the deliberate, documented
+   ceiling here.
+
+Security review: no findings. This round's changes are output-safety hardening (the escaping fix
+closes a real XML-well-formedness gap) and pure in-memory data transforms (row bucketing, row
+remapping) — no new I/O, parsing of untrusted input, or interpreter-boundary crossing beyond the
+existing `HtmlSpans.escapeHtml` sink, which is strictly safer after this round than before it.
+
 ## Post-plan follow-ups (2026-08-15)
 
 The plan's 11 phases are done; these are follow-up tasks done afterward, not

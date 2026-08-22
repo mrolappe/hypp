@@ -55,16 +55,23 @@ class EpubRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
         appendLine("""<?xml version="1.0" encoding="UTF-8"?>""")
         appendLine("""<html xmlns="http://www.w3.org/1999/xhtml">""")
         val name = HtmlSpans.escapeHtml(node.name)
-        appendLine("<head><title>$name</title></head>")
+        appendLine("<head><title>$name</title><style>body{$HTML_BODY_STYLE}</style></head>")
         appendLine("<body>")
         appendLine("<h1>$name</h1>")
-        for (graphic in node.graphics) {
-            if (graphic !is Graphic.Image) continue
-            val image = document.image(graphic.imageIndex) ?: continue
-            append("<img width=\"").append(image.width).append("\" height=\"").append(image.height)
-            append("\" src=\"").append(imageHref(image)).appendLine("\"/>")
+
+        val graphicsByRow = HtmlSpans.graphicsByRow(node.graphics, node.lines.size)
+        fun emitGraphics(row: Int) {
+            val graphics = graphicsByRow[row] ?: return
+            for (graphic in graphics.filterIsInstance<Graphic.Image>()) {
+                val image = document.image(graphic.imageIndex) ?: continue
+                append("<img width=\"").append(image.width).append("\" height=\"").append(image.height)
+                append("\" src=\"").append(imageHref(image)).appendLine("\"/>")
+            }
+            HtmlSpans.nonImageGraphicMarkup(graphics)?.let(::appendLine)
         }
-        for (line in node.lines) {
+
+        node.lines.forEachIndexed { index, line ->
+            emitGraphics(index)
             append("<p>")
             // Each node is its own XHTML document here, unlike HtmlRenderer's single page, so an
             // internal link must cross files (node-<target>.xhtml) rather than jump to a same-page
@@ -72,6 +79,8 @@ class EpubRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
             for (span in line.spans) append(HtmlSpans.renderSpan(span) { target -> "node-${target.value}.xhtml" })
             appendLine("</p>")
         }
+        emitGraphics(node.lines.size)
+
         appendLine("</body>")
         append("</html>")
     }

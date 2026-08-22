@@ -201,6 +201,44 @@ class EpubRendererTest {
     }
 
     @Test
+    fun lineGraphicRendersAsARuleBeforeItsRow() {
+        val rule = Graphic.Line(x = 0, y = 1, width = 40, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
+        val doc = document(
+            listOf(
+                node(
+                    0,
+                    "Introduction",
+                    lines = listOf(
+                        Line(listOf(Span("Title", TextStyle.Normal))),
+                        Line(listOf(Span("But why hypertext?", TextStyle.Normal))),
+                    ),
+                    graphics = listOf(rule),
+                ),
+            ),
+        )
+
+        val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
+
+        val hrIndex = xhtml.indexOf("<hr/>")
+        val secondPIndex = xhtml.indexOf("<p>But why hypertext?</p>")
+        assertTrue(hrIndex >= 0, xhtml)
+        assertTrue(hrIndex < secondPIndex, "rule must precede the row it decorates: $xhtml")
+        assertTrue(xhtml.indexOf("<p>Title</p>") < hrIndex, "rule must not precede row 0: $xhtml")
+    }
+
+    @Test
+    fun controlCharacterInNodeTextDoesNotBreakXhtml() {
+        val doc = document(
+            listOf(node(0, "Home", listOf(Line(listOf(Span("Control - ${Char(0x03)} !", TextStyle.Normal)))))),
+        )
+
+        val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
+
+        assertFalse(xhtml.contains(Char(0x03).toString()), xhtml)
+        assertTrue(xhtml.contains("Control - ${Char(0x2403)} !"), xhtml)
+    }
+
+    @Test
     fun titleAndAuthorAreDerivedFromTheDocumentsExtendedHeaders() {
         val doc = document(
             listOf(node(0, "Home")),

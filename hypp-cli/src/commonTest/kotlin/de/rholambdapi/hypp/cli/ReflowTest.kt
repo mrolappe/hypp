@@ -1,5 +1,6 @@
 package de.rholambdapi.hypp.cli
 
+import de.rholambdapi.hypp.Graphic
 import de.rholambdapi.hypp.Header
 import de.rholambdapi.hypp.HypCharset
 import de.rholambdapi.hypp.HypDocument
@@ -104,5 +105,44 @@ class ReflowTest {
         val result = reflow(doc)
 
         assertEquals(listOf("wrapped text."), result.nodes.single().lines.map { it.text })
+    }
+
+    // The bug this guards: a Graphic.Line/Box/RoundedBox/Image is positioned by original text
+    // row (y). Joining hard-wrapped lines into fewer paragraphs shifts every row after the join,
+    // so a graphic left pointing at its pre-reflow row would render next to the wrong text.
+    @Test
+    fun reflowCarriesGraphicsForwardToTheirParagraphsNewRow() {
+        val rule = Graphic.Line(x = 0, y = 3, width = 10, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
+        val doc = HypDocument(
+            header = Header(itableSize = 0, itableCount = 0, compilerVersion = 0, compilerOs = 0),
+            extendedHeaders = emptyList(),
+            entries = emptyList(),
+            charset = HypCharset.Default,
+            nodes = listOf(
+                Node(
+                    index = NodeIndex(0),
+                    name = "Home",
+                    kind = NodeKind.TEXT,
+                    windowTitle = null,
+                    graphics = listOf(rule),
+                    crossReferences = emptyList(),
+                    dataBlocks = emptyList(),
+                    objectTable = emptyList(),
+                    // Row 0-1 merge into reflowed row 0; row 2 is blank (row 1 after reflow);
+                    // rows 3-4 (where the rule sits) merge into reflowed row 2.
+                    lines = listOf(line("First"), line("paragraph."), line(""), line("Second"), line("paragraph.")),
+                ),
+            ),
+            images = emptyList(),
+            diagnostics = emptyList(),
+        )
+
+        val result = reflow(doc)
+
+        assertEquals(
+            listOf("First paragraph.", "", "Second paragraph."),
+            result.nodes.single().lines.map { it.text },
+        )
+        assertEquals(2, (result.nodes.single().graphics.single() as Graphic.Line).y)
     }
 }

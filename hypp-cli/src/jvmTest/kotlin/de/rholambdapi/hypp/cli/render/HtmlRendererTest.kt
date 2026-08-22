@@ -28,7 +28,7 @@ class HtmlRendererTest {
         val document = Corpus.open("textattr")
         val html = HtmlRenderer().render(document)
 
-        assertTrue(html.startsWith("<!doctype html><html><head><meta charset=\"utf-8\"></head><body>"))
+        assertTrue(html.startsWith("<!doctype html><html><head><meta charset=\"utf-8\"><style>body{$HTML_BODY_STYLE}</style></head><body>"))
         assertTrue(html.trim().endsWith("</body></html>"))
 
         for (node in document.nodes) {
