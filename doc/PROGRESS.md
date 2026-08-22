@@ -179,6 +179,62 @@ closes a real XML-well-formedness gap) and pure in-memory data transforms (row b
 remapping) — no new I/O, parsing of untrusted input, or interpreter-boundary crossing beyond the
 existing `HtmlSpans.escapeHtml` sink, which is strictly safer after this round than before it.
 
+### Next tasks (not started — pick up in a fresh session)
+
+1. **Render `Graphic.Line`/`Box`/`RoundedBox` as real images in EPUB/HTML, not a generic
+   `<hr/>`.** Currently every such graphic sharing a row collapses into one plain rule
+   (`HtmlSpans.nonImageGraphicMarkup`) because there's no confirmed visual mapping for the fill
+   pattern / arrow-direction bits — see `doc/format-notes.md`'s "Line/box/rbox `Data` byte" entry
+   (corpus filenames don't line up with the decoded flags, no rendering oracle exists) and this
+   round's finding #5 above (hypview's own renderers draw these as real vector graphics — Cairo
+   strokes, HTML5 canvas+JS, PDF vector ops — which this project has no equivalent for). The task:
+   rasterize each `Graphic.Line`/`Box`/`RoundedBox` to a small PNG (reusing/extending
+   `ImageEncoder`/`StoredPngEncoder`'s pattern) sized from its `width`/`height` character cells, and
+   embed it the same way `Graphic.Image` already is (`OEBPS/images/...` + manifest `<item>` for
+   EPUB, data URI for `HtmlRenderer`) — plugged into the *same* row-interleaving machinery added
+   this round (`HtmlSpans.graphicsByRow`), replacing `nonImageGraphicMarkup`'s `<hr/>` fallback with
+   an actual `<img>`. Before drawing anything, revisit the semantic-mapping gap: the clean-room
+   policy (`doc/PLAN.md`'s locked "spec sources" decision — `hypview`'s `.c` files and its
+   `cp_*.h`/`hyp/*.h` tables are out of bounds, constants-only from `hyp.h`/`hypfmt.ui`) still
+   applies here exactly as it did to the charset table fixed this round, so the arrow-direction /
+   fill-pattern visual style needs an independently-sourced convention (or a deliberately
+   simple/neutral one — e.g. a plain solid rule/box outline — chosen and documented as such) rather
+   than reverse-engineering hypview's drawing code.
+2. **Generalize this round's "fixed-grid canvas" pattern**, not just apply it ad hoc per bug. The
+   takeaway from this round: a `.hyp` node is a character-cell canvas, not free text —
+   (a) whitespace is data (disable collapsing, use a fixed-width font — done this round via
+   `HtmlSpans.HTML_BODY_STYLE`); (b) any positioned decoration (image, line, box) should be keyed to
+   its row and interleaved into the text stream at render time, not dumped as a block before/after
+   the content (done this round via `HtmlSpans.graphicsByRow`); (c) any transform that changes row
+   count (reflow, wrapping, and — relevant once task 1 above lands — a graphic that itself spans
+   multiple rows, like the `y=55,height=3` `RoundedBox` seen in node 1 of the corpus fixture, which
+   nothing yet accounts for) must carry a row-remapping table forward so positioned elements stay
+   correct (done for `--reflow` this round via `Reflow.kt`'s `reflowWithRowMap`/`Graphic.remappedTo`).
+   Worth writing up explicitly (e.g. in `doc/guide/concepts.md` or a new `doc/format-notes.md`
+   entry) as a named pattern before task 1 adds a third row-consuming feature that would otherwise
+   re-derive it ad hoc a third time.
+
+### Other context for whoever picks this up
+
+- Root-causing this round's bugs used a throwaway `jvmTest` (not committed) that opened
+  `Corpus.open("st-guide_orig_en")` and printed `node.graphics`/`node.lines` directly — reach for
+  the same technique before guessing at graphic positions/counts again; the real fixture's node 0
+  ("Main") has 15 `Graphic.Line`s and node 1 ("Introduction") has 2 `Graphic.Line` + 2 `Graphic.Box`
+  + 1 `Graphic.RoundedBox`, none of which task 1 above renders yet (still generic `<hr/>`).
+  `st-guide_orig_en.hyp` is vendored at
+  `hypp-cli/src/commonTest/resources/corpus/st-guide_orig_en.hyp`.
+- A regenerated `st-guide_orig_en.epub`/`.html` (with `--reflow`, plus the epub's contents
+  extracted to a sibling directory) was left for by-eye inspection in
+  `/private/tmp/claude-501/-Users-mrolappe-studio-hypp/688f720a-9d59-46ba-a591-bff525c1856e/scratchpad/epub-html-check`
+  — a session-scoped scratch path, not a permanent location; regenerate via
+  `./gradlew run -Pargs="dump <fixture> --format <epub|html> --out <path> --reflow"` from
+  `hypp-cli/` if it's gone.
+- The five original bug-report items are otherwise fully closed: control-character XML safety,
+  row-interleaved rules for `Graphic.Line`/`Box`/`RoundedBox` (generic shape pending task 1),
+  monospace/`pre-wrap` layout preservation, and the `--reflow` + graphic-row interaction bug found
+  along the way. Only the *visual fidelity* of task 1 (real icons/lines/boxes instead of a generic
+  rule) remains open.
+
 ## Post-plan follow-ups (2026-08-15)
 
 The plan's 11 phases are done; these are follow-up tasks done afterward, not
