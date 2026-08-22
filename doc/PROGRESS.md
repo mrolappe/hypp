@@ -235,6 +235,60 @@ existing `HtmlSpans.escapeHtml` sink, which is strictly safer after this round t
   along the way. Only the *visual fidelity* of task 1 (real icons/lines/boxes instead of a generic
   rule) remains open.
 
+## Task 1 done: Graphic.Line/Box/RoundedBox render as real inline SVG (2026-08-22)
+
+Closes this doc's "Next tasks" task 1 above. The visual-mapping gap was resolved using only
+in-bounds, first-party sources: the HCP compiler's own `@line`/`@box`/`@rbox` command-reference
+nodes and the "Füllmuster" fill-pattern demo page in `hcp_orig_de.hyp` (viewed via the public
+`hypview.cgi` mirror — sanctioned in `doc/PLAN.md` as a by-eye sanity check, not an automated
+oracle — plus a user screenshot of the rendered "Füllmuster" page). Findings:
+
+- **Arrows** (`<Attr>` 0/1/2/3 = none/start/end/both) exactly match hypp's existing bit0/bit1
+  decoding — confirms it was already correct. The `lines.hyp` filename-mismatch note in
+  `doc/format-notes.md`'s "Line/box/rbox `Data` byte" entry is now understood to be mislabeled
+  filenames in that third-party corpus, not a decoding bug — that entry should be considered
+  resolved, not left as an open gap, next time it's read.
+- **Line style** 1-7: solid, long dash, dots, dash-dot, dash, dash-dot-dot, dotted (standard
+  GEM/VDI polyline styles) — 0 (unset) renders the same as 1 (solid).
+- **Fill pattern** 0-8: confirmed by screenshot to be a monotonic hollow-to-solid density
+  gradient, not a distinct hatch shape per level.
+- **Compositing**: the HCP doc states objects (including text) draw in "OR mode" — translucent,
+  never obscuring what's underneath. Implemented as `mix-blend-mode:multiply` on every emitted
+  shape.
+
+Per user direction: inline SVG (sized in `ch`/`em`, scales with the monospace grid, no
+character-cell-to-pixel constant needed) is the path wired into `HtmlRenderer`/`EpubRenderer`; a
+separate, reusable pixel rasterizer was also built (not wired into either renderer yet) so a
+future consumer needing real pixels doesn't duplicate PNG-encoding logic.
+
+New files: `VectorGraphic.kt` (bit-decoded values → rendering-ready dash/fill-level mapping),
+`VectorGraphicSvg.kt` (SVG renderer + shared `<defs>` of 9 fill patterns + 2 arrow markers),
+`VectorGraphicRaster.kt` (pixel rasterizer, `ponytail:` no anti-aliasing / single-radius corners —
+upgrade to a proper scanline rasterizer if a consumer needs higher fidelity). `StoredPngEncoder`
+gained `encodeRgba(width, height, rgba)`, extracted from `encode(ImageNode)`, as the shared PNG
+terminus for both `ImageNode` and the new rasterizer. `HtmlSpans.nonImageGraphicMarkup` (the old
+`<hr/>` fallback) is now `vectorGraphicMarkup`, wired into both renderers exactly where the old
+function was. All Kotlin targets (`jvm`, `macosArm64`, `wasmWasi`) pass; manually verified against
+`st-guide_orig_en.hyp` node 1's real 2 Line + 2 Box + 1 RoundedBox (the `y=55,height=3`
+RoundedBox cited in this doc's task 2 renders correctly outside `--reflow`, with `rx="1.0"`).
+Security review of the round's diff found nothing reportable — every new SVG attribute value is
+numeric (`Int`/`Double`/a fixed internal dash-pattern map), never raw file text, so there's no
+XML/attribute-injection path even though the underlying ints are file-controlled.
+
+**Newly discovered, out of scope for this round — needs a decision before fixing:**
+`Node.kt:207`'s `val width = u8(pos + 5)` parses `Graphic.Line.width` as an *unsigned* byte, but
+the HCP `@line` doc specifies X-length as signed, `-127..126` (negative = line drawn bottom-left
+to top-right instead of top-left to bottom-right). So `Graphic.Line.width` can never actually be
+negative today — the "negative dx" branch in `VectorGraphicSvg`/`VectorGraphicRaster` (this
+round's new code) is currently dead with real parsed data. Not fixed here because it's a parser
+change outside this task's approved scope (rendering, not decoding), and changing the sign
+interpretation could ripple into `NodeTest`'s existing assertions. Whether `lines.hyp`'s corpus
+actually exercises a byte value >127 for this field (i.e. whether this gap is corpus-observable or
+only a latent spec-conformance gap) hasn't been checked yet.
+
+Task 2 (the fixed-grid-canvas write-up + multi-row-graphic/reflow row-remapping gap) is still open,
+unchanged by this round.
+
 ## Post-plan follow-ups (2026-08-15)
 
 The plan's 11 phases are done; these are follow-up tasks done afterward, not

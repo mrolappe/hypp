@@ -13,12 +13,14 @@ object StoredPngEncoder : ImageEncoder {
         0x0D, 0x0A, 0x1A, 0x0A,
     )
 
-    override fun encode(image: ImageNode): ByteArray {
-        val rgba = image.toRgba()
-        val raw = rawRows(image.width, image.height, rgba)
+    override fun encode(image: ImageNode): ByteArray = encodeRgba(image.width, image.height, image.toRgba())
+
+    /** Encodes a raw RGBA pixel buffer (row-major, 4 bytes/pixel) as PNG bytes — the reusable seam for any caller that isn't an [ImageNode]. */
+    fun encodeRgba(width: Int, height: Int, rgba: ByteArray): ByteArray {
+        val raw = rawRows(width, height, rgba)
         val idatData = zlibStream(raw)
         return PNG_SIGNATURE +
-            chunk("IHDR", ihdrData(image.width, image.height)) +
+            chunk("IHDR", ihdrData(width, height)) +
             chunk("IDAT", idatData) +
             chunk("IEND", ByteArray(0))
     }

@@ -201,7 +201,7 @@ class EpubRendererTest {
     }
 
     @Test
-    fun lineGraphicRendersAsARuleBeforeItsRow() {
+    fun lineGraphicRendersAsInlineSvgBeforeItsRow() {
         val rule = Graphic.Line(x = 0, y = 1, width = 40, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
         val doc = document(
             listOf(
@@ -219,11 +219,11 @@ class EpubRendererTest {
 
         val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
 
-        val hrIndex = xhtml.indexOf("<hr/>")
+        val lineIndex = xhtml.indexOf("<line")
         val secondPIndex = xhtml.indexOf("<p>But why hypertext?</p>")
-        assertTrue(hrIndex >= 0, xhtml)
-        assertTrue(hrIndex < secondPIndex, "rule must precede the row it decorates: $xhtml")
-        assertTrue(xhtml.indexOf("<p>Title</p>") < hrIndex, "rule must not precede row 0: $xhtml")
+        assertTrue(lineIndex >= 0, xhtml)
+        assertTrue(lineIndex < secondPIndex, "graphic must precede the row it decorates: $xhtml")
+        assertTrue(xhtml.indexOf("<p>Title</p>") < lineIndex, "graphic must not precede row 0: $xhtml")
     }
 
     @Test

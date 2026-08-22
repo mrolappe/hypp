@@ -4,6 +4,7 @@ import de.rholambdapi.hypp.Graphic
 import de.rholambdapi.hypp.NodeIndex
 import de.rholambdapi.hypp.Span
 import de.rholambdapi.hypp.TextStyle
+import de.rholambdapi.hypp.cli.render.VectorGraphicSvg.toSvg
 
 /**
  * A `.hyp` node's lines are a fixed-width character-cell grid — indentation and multi-column
@@ -81,14 +82,20 @@ object HtmlSpans {
         graphics.groupBy { it.y.coerceIn(0, lineCount) }
 
     /**
-     * A [Graphic.Line]/[Graphic.Box]/[Graphic.RoundedBox]'s fill pattern and arrow-direction bits
-     * have no confirmed visual mapping (`doc/format-notes.md`'s "Line/box/rbox `Data` byte" entry
-     * — the corpus's own filenames don't line up with the decoded flags, and there's no rendering
-     * oracle to settle it). Rather than fabricate detail the format spec doesn't settle, every
-     * such graphic sharing a row collapses into one plain rule, so the row's decorative intent
-     * survives without pretending to know its exact shape. Returns null when [graphics] holds
-     * only [Graphic.Image]s, which render themselves.
+     * Renders every [Graphic.Line]/[Graphic.Box]/[Graphic.RoundedBox] in [graphics] as inline SVG
+     * (see [VectorGraphicSvg] for the bit-to-visual mapping, sourced from the HCP compiler's own
+     * command reference). Returns null when [graphics] holds only [Graphic.Image]s, which render
+     * themselves. Callers must also emit [VectorGraphicSvg.sharedDefs] once per document/file.
      */
-    fun nonImageGraphicMarkup(graphics: List<Graphic>): String? =
-        if (graphics.any { it !is Graphic.Image }) "<hr/>" else null
+    fun vectorGraphicMarkup(graphics: List<Graphic>): String? {
+        val svg = buildString {
+            for (graphic in graphics) when (graphic) {
+                is Graphic.Line -> append(graphic.toVectorGraphic().toSvg())
+                is Graphic.Box -> append(graphic.toVectorGraphic().toSvg())
+                is Graphic.RoundedBox -> append(graphic.toVectorGraphic().toSvg())
+                is Graphic.Image -> {}
+            }
+        }
+        return svg.ifEmpty { null }
+    }
 }

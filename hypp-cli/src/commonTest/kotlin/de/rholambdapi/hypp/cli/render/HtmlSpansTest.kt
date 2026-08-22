@@ -9,7 +9,9 @@ import de.rholambdapi.hypp.Span
 import de.rholambdapi.hypp.TextStyle
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Hand-derived expected strings from the ported hyp2html span-rendering rules (bold/italic/underline
@@ -137,13 +139,17 @@ class HtmlSpansTest {
     }
 
     @Test
-    fun nonImageGraphicMarkupIsARuleWhenAnyNonImageGraphicIsPresent() {
+    fun vectorGraphicMarkupRendersInlineSvgForEveryNonImageGraphic() {
         val line = Graphic.Line(x = 0, y = 0, width = 10, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
         val image = Graphic.Image(NodeIndex(1), x = 0, y = 0, width = 0, height = 0, ditherMask = null)
 
-        assertEquals("<hr/>", HtmlSpans.nonImageGraphicMarkup(listOf(line)))
-        assertEquals("<hr/>", HtmlSpans.nonImageGraphicMarkup(listOf(image, line)))
-        assertNull(HtmlSpans.nonImageGraphicMarkup(listOf(image)))
-        assertNull(HtmlSpans.nonImageGraphicMarkup(emptyList()))
+        val lineOnly = HtmlSpans.vectorGraphicMarkup(listOf(line))
+        assertNotNull(lineOnly)
+        assertTrue(lineOnly.contains("<svg"))
+        assertTrue(lineOnly.contains("marker-start"))
+
+        assertEquals(lineOnly, HtmlSpans.vectorGraphicMarkup(listOf(image, line)))
+        assertNull(HtmlSpans.vectorGraphicMarkup(listOf(image)))
+        assertNull(HtmlSpans.vectorGraphicMarkup(emptyList()))
     }
 }

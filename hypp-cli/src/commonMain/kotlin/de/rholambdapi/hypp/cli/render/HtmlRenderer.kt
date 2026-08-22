@@ -15,6 +15,7 @@ class HtmlRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
     @OptIn(ExperimentalEncodingApi::class)
     override fun render(document: HypDocument): String = buildString {
         appendLine("<!doctype html><html><head><meta charset=\"utf-8\"><style>body{$HTML_BODY_STYLE}</style></head><body>")
+        appendLine(VectorGraphicSvg.sharedDefs())
         for (node in document.nodes) {
             append("<h2 id=\"").append(node.index.value).append("\">")
             append(HtmlSpans.escapeHtml(node.name)).appendLine("</h2>")
@@ -28,7 +29,7 @@ class HtmlRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
                     append("<img width=\"").append(image.width).append("\" height=\"").append(image.height)
                     append("\" src=\"").append(dataUri).appendLine("\">")
                 }
-                HtmlSpans.nonImageGraphicMarkup(graphics)?.let(::appendLine)
+                HtmlSpans.vectorGraphicMarkup(graphics)?.let(::appendLine)
             }
 
             node.lines.forEachIndexed { index, line ->

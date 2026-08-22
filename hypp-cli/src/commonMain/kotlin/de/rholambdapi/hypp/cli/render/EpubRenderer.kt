@@ -57,6 +57,7 @@ class EpubRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
         val name = HtmlSpans.escapeHtml(node.name)
         appendLine("<head><title>$name</title><style>body{$HTML_BODY_STYLE}</style></head>")
         appendLine("<body>")
+        appendLine(VectorGraphicSvg.sharedDefs())
         appendLine("<h1>$name</h1>")
 
         val graphicsByRow = HtmlSpans.graphicsByRow(node.graphics, node.lines.size)
@@ -67,7 +68,7 @@ class EpubRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
                 append("<img width=\"").append(image.width).append("\" height=\"").append(image.height)
                 append("\" src=\"").append(imageHref(image)).appendLine("\"/>")
             }
-            HtmlSpans.nonImageGraphicMarkup(graphics)?.let(::appendLine)
+            HtmlSpans.vectorGraphicMarkup(graphics)?.let(::appendLine)
         }
 
         node.lines.forEachIndexed { index, line ->

@@ -4,6 +4,7 @@ import de.rholambdapi.hypp.cli.reflow
 import java.io.ByteArrayInputStream
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
+import kotlin.test.assertTrue
 
 /**
  * `st-guide_orig_en.hyp`'s "Introduction" node is the real fixture that surfaced the bug: a
@@ -31,6 +32,20 @@ class EpubRendererWellFormednessTest {
                 throw AssertionError("${file.path} is not well-formed XML: ${e.message}", e)
             }
         }
+    }
+
+    @Test
+    fun realCorpusLineAndBoxGraphicsRenderAsWellFormedInlineSvg() {
+        val document = Corpus.open("st-guide_orig_en")
+        val introduction = document.nodes.single { it.name == "Introduction" }
+
+        val xhtml = EpubRenderer().render(document)
+            .single { it.path == "OEBPS/node-${introduction.index.value}.xhtml" }
+
+        parse(xhtml.bytes)
+        val text = xhtml.bytes.decodeToString()
+        assertTrue(text.contains("<line"), text)
+        assertTrue(text.contains("<rect"), text)
     }
 
     @Test
