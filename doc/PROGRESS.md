@@ -368,3 +368,19 @@ Commit `8935200` (items 1-2). Verified against the real `st-guide_orig_en.hyp` f
 unit tests): the line above "But why hypertext?" now renders `y1="0" y2="0"`, and the
 "Introduction"/"Main" nodes' paragraph spacing collapsed to match the source file's own blank-line
 spacing.
+
+**New bug found incidentally while regenerating the EPUB for review (not fixed, not part of the
+original 5-symptom report): internal links to `EXTERNAL_REF` targets render as broken `node-<N>.xhtml`
+hrefs.** `EpubRenderer`'s span rendering (`HtmlSpans.renderSpan(span) { target -> "node-${target.value}.xhtml" }`)
+always builds an internal cross-file href from `Span.link.target`, without checking whether that
+`NodeIndex` actually resolves to a `Node` this document renders its own page for. `st-guide_orig_en.hyp`
+has 22 `EXTERNAL_REF` index entries (links to nodes in *other* `.hyp` files, e.g. `hcp.hyp/Main`,
+`reflink.hyp/Main`) that correctly have no corresponding `Node`/xhtml file — `HypDocument.resolve()`
+already distinguishes these as `ResolvedTarget.ToExternalRef` vs `ResolvedTarget.ToNode`, but
+`EpubRenderer` never calls it, so every such link points at a `node-<N>.xhtml` file that was never
+written. Confirmed via Calibre's `ebook-convert` (`OEBPS/node-86.xhtml` etc. reported "not found"
+for all 21 of the 22 external-ref targets that fall in-range; `EXTERNAL_REF`/`SYSTEM` entry indices
+78-100). Likely fix: use `document.resolve(target)` in `EpubRenderer`'s `linkHref`, and either drop
+the `<a>` wrapper (render plain text) or point at an anchor with the external file/node name for
+`ToExternalRef`, since no `.REF` file is loaded to know a real destination path. Not investigated
+further or fixed — found while regenerating output for a visual review, not the round's task.
