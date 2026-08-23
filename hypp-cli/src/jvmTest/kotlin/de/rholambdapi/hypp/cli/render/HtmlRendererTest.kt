@@ -23,20 +23,14 @@ import kotlin.test.assertTrue
  * six carries an image).
  */
 class HtmlRendererTest {
-    /**
-     * Rows with no graphic between them share one `<p>`, joined by `\n` (relying on
-     * [HTML_BODY_STYLE]'s `white-space:pre-wrap`) instead of one `<p>` per row — mirrors
-     * [HtmlRenderer]'s grouping rather than asserting a fixed one-`<p>`-per-row shape.
+    /** Every node renders as exactly one `<p style="margin:0">`, its rows joined by `\n`
+     * (relying on [HTML_BODY_STYLE]'s `white-space:pre-wrap`) — graphics no longer split it,
+     * since they're positioned overlays now instead of DOM-order-interleaved blocks.
      */
-    private fun expectedParagraphs(node: de.rholambdapi.hypp.Node): List<String> {
-        val graphicRows = node.graphics.mapTo(mutableSetOf()) { it.y.coerceIn(0, node.lines.size) }
-        val paragraphs = mutableListOf<MutableList<String>>()
-        node.lines.forEachIndexed { index, line ->
-            val text = line.spans.joinToString("") { HtmlSpans.renderSpan(it) }
-            if (index in graphicRows || paragraphs.isEmpty()) paragraphs += mutableListOf(text) else paragraphs.last() += text
-        }
-        return paragraphs.map { "<p>" + it.joinToString("\n") + "</p>" }
-    }
+    private fun expectedParagraph(node: de.rholambdapi.hypp.Node): String =
+        "<p style=\"margin:0\">" +
+            node.lines.joinToString("\n") { line -> line.spans.joinToString("") { HtmlSpans.renderSpan(it) } } +
+            "</p>"
 
     @Test
     fun rendersTextattrStructurally() {
@@ -46,17 +40,75 @@ class HtmlRendererTest {
         assertTrue(html.startsWith("<!doctype html><html><head><meta charset=\"utf-8\"><style>body{$HTML_BODY_STYLE}</style></head><body>"))
         assertTrue(html.trim().endsWith("</body></html>"))
 
-        var expectedPCount = 0
         for (node in document.nodes) {
             val expectedH2 = "<h2 id=\"${node.index.value}\">${HtmlSpans.escapeHtml(node.name)}</h2>"
             assertTrue(html.contains(expectedH2), "missing h2 for ${node.name}")
-            for (expectedP in expectedParagraphs(node)) {
-                assertTrue(html.contains(expectedP), "expected to find $expectedP")
-                expectedPCount++
-            }
+            assertTrue(html.contains(expectedParagraph(node)), "expected to find paragraph for ${node.name}")
         }
 
-        assertEquals(expectedPCount, Regex("<p>").findAll(html).count())
+        // No graphic/position bucketing left to get wrong — one <p> per node, always.
+        assertEquals(document.nodes.size, Regex("<p style=\"margin:0\">").findAll(html).count())
+    }
+
+    @Test
+    fun rendersGraphicAsAbsolutelyPositionedOverlay() {
+        val line = Graphic.Line(x = 5, y = 0, width = 10, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
+        val node = Node(
+            index = NodeIndex(0),
+            name = "Deco",
+            kind = NodeKind.TEXT,
+            windowTitle = null,
+            graphics = listOf(line),
+            crossReferences = emptyList(),
+            dataBlocks = emptyList(),
+            objectTable = emptyList(),
+            lines = listOf(Line(listOf(Span("row", TextStyle.Normal)))),
+        )
+        val document = HypDocument(
+            header = Header(itableSize = 0, itableCount = 0, compilerVersion = 0, compilerOs = 0),
+            extendedHeaders = emptyList(),
+            entries = emptyList(),
+            charset = HypCharset.Default,
+            nodes = listOf(node),
+            images = emptyList(),
+            diagnostics = emptyList(),
+        )
+
+        val html = HtmlRenderer().render(document)
+
+        assertTrue(html.contains("<div style=\"position:absolute;z-index:1;top:0em;left:5ch\">"), html)
+    }
+
+    @Test
+    fun rendersAGraphicWithXZeroAsCentered() {
+        val line = Graphic.Line(x = 0, y = 0, width = 10, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
+        val node = Node(
+            index = NodeIndex(0),
+            name = "Deco",
+            kind = NodeKind.TEXT,
+            windowTitle = null,
+            graphics = listOf(line),
+            crossReferences = emptyList(),
+            dataBlocks = emptyList(),
+            objectTable = emptyList(),
+            lines = listOf(Line(listOf(Span("row", TextStyle.Normal)))),
+        )
+        val document = HypDocument(
+            header = Header(itableSize = 0, itableCount = 0, compilerVersion = 0, compilerOs = 0),
+            extendedHeaders = emptyList(),
+            entries = emptyList(),
+            charset = HypCharset.Default,
+            nodes = listOf(node),
+            images = emptyList(),
+            diagnostics = emptyList(),
+        )
+
+        val html = HtmlRenderer().render(document)
+
+        assertTrue(
+            html.contains("<div style=\"position:absolute;z-index:1;top:0em;left:50%;transform:translateX(-50%)\">"),
+            html,
+        )
     }
 
     @OptIn(ExperimentalEncodingApi::class)
@@ -99,6 +151,6 @@ class HtmlRendererTest {
 
         val expectedDataUri = "data:image/png;base64," + Base64.encode(StoredPngEncoder.encode(image))
         assertTrue(html.contains("<img width=\"2\" height=\"2\" src=\"$expectedDataUri\">"))
-        assertTrue(html.contains("<p>caption</p>"))
+        assertTrue(html.contains("<p style=\"margin:0\">caption</p>"))
     }
 }

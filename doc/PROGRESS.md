@@ -289,6 +289,55 @@ only a latent spec-conformance gap) hasn't been checked yet.
 Task 2 (the fixed-grid-canvas write-up + multi-row-graphic/reflow row-remapping gap) is still open,
 unchanged by this round.
 
+## CSS-grid/overlay rework: `Graphic.x` now honored, graphics layered not stacked (2026-08-23)
+
+Closes the "Open — no horizontal (`x`) offset, no row-overlay" item from the 2026-08-22 bug-report
+section above. `HtmlRenderer`/`EpubRenderer` previously interleaved every `Graphic` as a block-level
+sibling *before* the `<p>` for the row it decorates (`HtmlSpans.graphicsByRow` + a per-renderer
+paragraph-open/close loop, duplicated verbatim between the two files) — `Graphic.x` was parsed into
+the model but never read by either renderer, and a graphic meant to visually surround its text (e.g.
+the "Have fun with ST-Guide!!!" `Box`) rendered as three stacked blocks instead.
+
+Fixed by replacing both renderers' duplicated loop with one shared `HtmlSpans.renderGrid(node,
+linkHref, imageTag)`: every node's lines collapse to a single `<p style="margin:0">` (rows joined by
+`\n`, unconditionally now — the only reason multiple `<p>`s existed was to interleave graphic markup
+in DOM order, which is moot once graphics are positioned overlays), and every `Graphic` renders as a
+sibling `<div style="position:absolute;z-index:1;top:<y>em;left:<x>ch">` — no CSS Grid; `top`/`left`
+in `em`/`ch` on a `position:relative;line-height:1` container was simpler and needs no
+`grid-row: span N` bookkeeping for multi-row graphics (a `RoundedBox` at `y=55,height=3` just gets
+`top:55em`, since `VectorGraphicSvg` already sizes that graphic's own SVG `height="3em"`).
+`Graphic.centered` (`x == 0`, already documented on the model) is now honored via
+`left:50%;transform:translateX(-50%)` instead of silently rendering flush-left. `graphicsByRow` was
+deleted (only caller was the removed loop). `Reflow.kt` needed no change — it already rewrites
+`Graphic.y`/`height` before rendering, and `renderGrid` reads `y`/`x` fresh at render time, never
+caching a pre-baked position.
+
+Verified against the real `st-guide_orig_en.hyp` fixture (not just unit tests): regenerated HTML/EPUB
+with and without `--reflow`. The `y=55,height=3` `RoundedBox` renders as one continuous absolutely
+positioned box in both cases (`top:55em`/`top:27em` under `--reflow`, still one `height="3"` SVG, not
+split). Real corpus graphics carry a wide spread of nonzero `x` values (428 positioned graphics
+total, only 1 at `x=0`/centered) — the flush-left bug was real and pervasive, not a corner case. EPUB
+XHTML re-verified well-formed with Python's `xml.dom.minidom` outside the JVM toolchain.
+`./gradlew clean build` green on all three `hypp-cli` targets (JVM/`macosArm64`/`wasmWasi`).
+
+Tests: `HtmlSpansTest`'s `graphicsByRowBucketsByYAndClampsOutOfRangeRows` (tested the deleted
+function) replaced with direct `renderGrid` tests (no-graphic single-paragraph shape, real
+positioning, centering, out-of-range clamping, multi-row-graphic needs only `top`).
+`HtmlRendererTest`'s `expectedParagraphs()` helper — which re-derived the renderer's own row-bucketing
+logic and cross-checked an exact `<p>`-tag count, a fragile test/impl duplication — replaced with
+`expectedParagraph()` (always exactly one per node) plus a `document.nodes.size`-based count that no
+longer needs to know anything about graphic positions, plus new positioning/centering tests.
+`EpubRendererTest`'s `lineGraphicRendersAsInlineSvgBeforeItsRow` (asserted substring *ordering*, the
+exact assumption this rework invalidates) rewritten to assert the wrapper's `top`/`left` style
+directly; its `x=0` fixture is now a dedicated centering test, with a new nonzero-`x` test added for
+literal-column placement. `CommandsTest`'s reflow test updated for the new `<p style="margin:0">`
+literal. `VectorGraphicSvgTest`/`EpubRendererWellFormednessTest` needed no changes (position-agnostic).
+
+Security review: no findings. The only newly interpolated model field is `Graphic.x` (an `Int` parsed
+as an unsigned byte, same threat profile as the pre-existing `Graphic.y`) — `Int.toString()` cannot
+produce attribute-breakout characters, so there's no new injection path into the `style="..."`
+attribute it's placed in.
+
 ## Task 2 done: fixed-grid-canvas write-up + multi-row-graphic reflow fix (2026-08-22)
 
 Closes this doc's "Next tasks" task 2 above. Two parts:

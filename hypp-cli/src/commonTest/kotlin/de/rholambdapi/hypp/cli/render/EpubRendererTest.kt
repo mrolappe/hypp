@@ -114,7 +114,7 @@ class EpubRendererTest {
 
         assertTrue(xhtml.contains("<title>A &amp; B</title>"), xhtml)
         assertTrue(xhtml.contains("<h1>A &amp; B</h1>"), xhtml)
-        assertTrue(xhtml.contains("<p><b>bold</b></p>"), xhtml)
+        assertTrue(xhtml.contains("<p style=\"margin:0\"><b>bold</b></p>"), xhtml)
     }
 
     @Test
@@ -201,8 +201,8 @@ class EpubRendererTest {
     }
 
     @Test
-    fun lineGraphicRendersAsInlineSvgBeforeItsRow() {
-        val rule = Graphic.Line(x = 0, y = 1, width = 40, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
+    fun lineGraphicIsPositionedAtItsRealXAndY() {
+        val rule = Graphic.Line(x = 5, y = 1, width = 40, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
         val doc = document(
             listOf(
                 node(
@@ -219,11 +219,29 @@ class EpubRendererTest {
 
         val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
 
-        val lineIndex = xhtml.indexOf("<line")
-        val secondPIndex = xhtml.indexOf("<p>But why hypertext?</p>")
-        assertTrue(lineIndex >= 0, xhtml)
-        assertTrue(lineIndex < secondPIndex, "graphic must precede the row it decorates: $xhtml")
-        assertTrue(xhtml.indexOf("<p>Title</p>") < lineIndex, "graphic must not precede row 0: $xhtml")
+        assertTrue(xhtml.contains("<div style=\"position:absolute;z-index:1;top:1em;left:5ch\">"), xhtml)
+    }
+
+    @Test
+    fun lineGraphicWithXZeroIsCentered() {
+        val rule = Graphic.Line(x = 0, y = 1, width = 40, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
+        val doc = document(
+            listOf(
+                node(
+                    0,
+                    "Introduction",
+                    lines = listOf(Line(listOf(Span("Title", TextStyle.Normal))), Line(emptyList())),
+                    graphics = listOf(rule),
+                ),
+            ),
+        )
+
+        val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
+
+        assertTrue(
+            xhtml.contains("<div style=\"position:absolute;z-index:1;top:1em;left:50%;transform:translateX(-50%)\">"),
+            xhtml,
+        )
     }
 
     @Test
@@ -243,7 +261,7 @@ class EpubRendererTest {
 
         val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
 
-        assertTrue(xhtml.contains("<p>First\nSecond</p>"), xhtml)
+        assertTrue(xhtml.contains("<p style=\"margin:0\">First\nSecond</p>"), xhtml)
     }
 
     @Test

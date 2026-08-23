@@ -1,6 +1,5 @@
 package de.rholambdapi.hypp.cli.render
 
-import de.rholambdapi.hypp.Graphic
 import de.rholambdapi.hypp.HypDocument
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -20,33 +19,13 @@ class HtmlRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
             append("<h2 id=\"").append(node.index.value).append("\">")
             append(HtmlSpans.escapeHtml(node.name)).appendLine("</h2>")
 
-            val graphicsByRow = HtmlSpans.graphicsByRow(node.graphics, node.lines.size)
-            fun emitGraphics(row: Int) {
-                val graphics = graphicsByRow[row] ?: return
-                for (graphic in graphics.filterIsInstance<Graphic.Image>()) {
-                    val image = document.image(graphic.imageIndex) ?: continue
+            appendLine(
+                HtmlSpans.renderGrid(node) { graphic ->
+                    val image = document.image(graphic.imageIndex) ?: return@renderGrid null
                     val dataUri = "data:image/png;base64," + Base64.encode(imageEncoder.encode(image))
-                    append("<img width=\"").append(image.width).append("\" height=\"").append(image.height)
-                    append("\" src=\"").append(dataUri).appendLine("\">")
-                }
-                HtmlSpans.vectorGraphicMarkup(graphics)?.let(::appendLine)
-            }
-
-            // A run of rows with no graphic between them stays one <p>, its rows joined by `\n`
-            // (preserved by HTML_BODY_STYLE's white-space:pre-wrap) — one <p> per row would give
-            // every row its own browser paragraph margin, inflating line spacing past the source
-            // file's own blank-line spacing.
-            var paragraphOpen = false
-            node.lines.forEachIndexed { index, line ->
-                if (graphicsByRow.containsKey(index)) {
-                    if (paragraphOpen) { appendLine("</p>"); paragraphOpen = false }
-                    emitGraphics(index)
-                }
-                if (paragraphOpen) append("\n") else { append("<p>"); paragraphOpen = true }
-                for (span in line.spans) append(HtmlSpans.renderSpan(span))
-            }
-            if (paragraphOpen) appendLine("</p>")
-            emitGraphics(node.lines.size)
+                    "<img width=\"${image.width}\" height=\"${image.height}\" src=\"$dataUri\">"
+                },
+            )
         }
         appendLine("</body></html>")
     }

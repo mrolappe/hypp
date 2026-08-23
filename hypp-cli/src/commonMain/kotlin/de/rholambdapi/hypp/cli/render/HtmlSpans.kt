@@ -1,6 +1,7 @@
 package de.rholambdapi.hypp.cli.render
 
 import de.rholambdapi.hypp.Graphic
+import de.rholambdapi.hypp.Node
 import de.rholambdapi.hypp.NodeIndex
 import de.rholambdapi.hypp.Span
 import de.rholambdapi.hypp.TextStyle
@@ -73,13 +74,43 @@ object HtmlSpans {
     private const val CONTROL_PICTURES_BASE = 0x2400
 
     /**
-     * Buckets [graphics] by the text row (0-based, matching a [de.rholambdapi.hypp.Node]'s
-     * `lines` index) each is positioned at, so a caller can interleave a row's graphics into its
-     * output right before that row's line. A `y` past the last row (or negative, on malformed
-     * input) clamps to the nearest end rather than being silently dropped.
+     * Renders [node]'s lines and graphics as one positioned container: all lines as a single
+     * `<p style="margin:0">` (row order preserved by a literal `\n` per line — [HTML_BODY_STYLE]'s
+     * `white-space:pre-wrap` keeps that meaningful), every [Graphic] as an absolutely positioned
+     * sibling `<div>` at `top:<row>em;left:<column>ch`. `line-height:1` on the container plus
+     * `top:<row>em` on each graphic is what keeps a graphic aligned with its real text row — a
+     * multi-row graphic (`height > 1`) needs no special handling here since its own markup (from
+     * [vectorGraphicMarkup]) is already sized `<height>em` tall by [VectorGraphicSvg]. `x == 0`
+     * ([Graphic.centered]) renders as `left:50%;transform:translateX(-50%)`, honoring the
+     * documented model semantic instead of leaving it unread.
+     *
+     * [imageTag] renders one [Graphic.Image] as a complete `<img .../>` string, or null if the
+     * referenced image can't be resolved — [HtmlRenderer] and [EpubRenderer] each address an image
+     * differently (data URI vs. relative href) and own that decision; this function only positions
+     * whatever [imageTag] returns.
      */
-    fun graphicsByRow(graphics: List<Graphic>, lineCount: Int): Map<Int, List<Graphic>> =
-        graphics.groupBy { it.y.coerceIn(0, lineCount) }
+    fun renderGrid(
+        node: Node,
+        linkHref: (NodeIndex) -> String = { "#${it.value}" },
+        imageTag: (Graphic.Image) -> String?,
+    ): String = buildString {
+        append("<div style=\"position:relative;line-height:1\"><p style=\"margin:0\">")
+        node.lines.forEachIndexed { index, line ->
+            if (index > 0) append("\n")
+            for (span in line.spans) append(renderSpan(span, linkHref))
+        }
+        append("</p>")
+        for (graphic in node.graphics) {
+            val markup = if (graphic is Graphic.Image) imageTag(graphic) else vectorGraphicMarkup(listOf(graphic))
+            if (markup == null) continue
+            val top = graphic.y.coerceIn(0, node.lines.size)
+            val horizontal = if (graphic.centered) "left:50%;transform:translateX(-50%)" else "left:${graphic.x}ch"
+            append("<div style=\"position:absolute;z-index:1;top:${top}em;$horizontal\">")
+            append(markup)
+            append("</div>")
+        }
+        append("</div>")
+    }
 
     /**
      * Renders every [Graphic.Line]/[Graphic.Box]/[Graphic.RoundedBox] in [graphics] as inline SVG

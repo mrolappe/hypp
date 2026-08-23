@@ -60,35 +60,15 @@ class EpubRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
         appendLine(VectorGraphicSvg.sharedDefs())
         appendLine("<h1>$name</h1>")
 
-        val graphicsByRow = HtmlSpans.graphicsByRow(node.graphics, node.lines.size)
-        fun emitGraphics(row: Int) {
-            val graphics = graphicsByRow[row] ?: return
-            for (graphic in graphics.filterIsInstance<Graphic.Image>()) {
-                val image = document.image(graphic.imageIndex) ?: continue
-                append("<img width=\"").append(image.width).append("\" height=\"").append(image.height)
-                append("\" src=\"").append(imageHref(image)).appendLine("\"/>")
-            }
-            HtmlSpans.vectorGraphicMarkup(graphics)?.let(::appendLine)
-        }
-
-        // A run of rows with no graphic between them stays one <p>, its rows joined by `\n`
-        // (preserved by HTML_BODY_STYLE's white-space:pre-wrap) — one <p> per row would give
-        // every row its own e-reader paragraph margin, inflating line spacing past the source
-        // file's own blank-line spacing.
-        var paragraphOpen = false
-        node.lines.forEachIndexed { index, line ->
-            if (graphicsByRow.containsKey(index)) {
-                if (paragraphOpen) { appendLine("</p>"); paragraphOpen = false }
-                emitGraphics(index)
-            }
-            if (paragraphOpen) append("\n") else { append("<p>"); paragraphOpen = true }
+        appendLine(
             // Each node is its own XHTML document here, unlike HtmlRenderer's single page, so an
             // internal link must cross files (node-<target>.xhtml) rather than jump to a same-page
             // fragment that nothing in this file would define anyway.
-            for (span in line.spans) append(HtmlSpans.renderSpan(span) { target -> "node-${target.value}.xhtml" })
-        }
-        if (paragraphOpen) appendLine("</p>")
-        emitGraphics(node.lines.size)
+            HtmlSpans.renderGrid(node, linkHref = { target -> "node-${target.value}.xhtml" }) { graphic ->
+                val image = document.image(graphic.imageIndex) ?: return@renderGrid null
+                "<img width=\"${image.width}\" height=\"${image.height}\" src=\"${imageHref(image)}\"/>"
+            },
+        )
 
         appendLine("</body>")
         append("</html>")

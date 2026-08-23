@@ -2,9 +2,12 @@ package de.rholambdapi.hypp.cli.render
 
 import de.rholambdapi.hypp.Graphic
 import de.rholambdapi.hypp.HypColor
+import de.rholambdapi.hypp.Line
 import de.rholambdapi.hypp.Link
 import de.rholambdapi.hypp.LinkKind
+import de.rholambdapi.hypp.Node
 import de.rholambdapi.hypp.NodeIndex
+import de.rholambdapi.hypp.NodeKind
 import de.rholambdapi.hypp.Span
 import de.rholambdapi.hypp.TextStyle
 import kotlin.test.Test
@@ -125,17 +128,77 @@ class HtmlSpansTest {
         )
     }
 
+    private fun node(lines: List<Line>, graphics: List<Graphic> = emptyList()) = Node(
+        index = NodeIndex(0),
+        name = "n",
+        kind = NodeKind.TEXT,
+        windowTitle = null,
+        graphics = graphics,
+        crossReferences = emptyList(),
+        dataBlocks = emptyList(),
+        objectTable = emptyList(),
+        lines = lines,
+    )
+
     @Test
-    fun graphicsByRowBucketsByYAndClampsOutOfRangeRows() {
-        val onRow2 = Graphic.Line(x = 0, y = 2, width = 10, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
-        val pastTheEnd = Graphic.Box(x = 0, y = 99, width = 10, height = 1, fillPattern = 0)
-        val negative = Graphic.RoundedBox(x = 0, y = -5, width = 10, height = 1, fillPattern = 0)
+    fun renderGridWithNoGraphicsIsOneParagraphAndNoWrapperDivs() {
+        val n = node(listOf(Line(listOf(Span("only text", TextStyle.Normal)))))
 
-        val byRow = HtmlSpans.graphicsByRow(listOf(onRow2, pastTheEnd, negative), lineCount = 5)
+        val html = HtmlSpans.renderGrid(n) { null }
 
-        assertEquals(listOf(onRow2), byRow[2])
-        assertEquals(listOf(pastTheEnd), byRow[5])
-        assertEquals(listOf(negative), byRow[0])
+        assertEquals(
+            "<div style=\"position:relative;line-height:1\"><p style=\"margin:0\">only text</p></div>",
+            html,
+        )
+    }
+
+    @Test
+    fun renderGridPositionsANonCenteredGraphicByItsRealXAndY() {
+        val graphic = Graphic.Line(x = 5, y = 2, width = 10, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
+        val n = node(List(3) { Line(emptyList()) }, listOf(graphic))
+
+        val html = HtmlSpans.renderGrid(n) { null }
+
+        assertTrue(html.contains("<div style=\"position:absolute;z-index:1;top:2em;left:5ch\">"), html)
+    }
+
+    @Test
+    fun renderGridCentersAGraphicWhenXIsZero() {
+        val graphic = Graphic.Line(x = 0, y = 1, width = 10, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
+        val n = node(List(2) { Line(emptyList()) }, listOf(graphic))
+
+        val html = HtmlSpans.renderGrid(n) { null }
+
+        assertTrue(
+            html.contains("<div style=\"position:absolute;z-index:1;top:1em;left:50%;transform:translateX(-50%)\">"),
+            html,
+        )
+    }
+
+    @Test
+    fun renderGridClampsOutOfRangeYToTheNodesRowBounds() {
+        val pastTheEnd = Graphic.Box(x = 3, y = 99, width = 10, height = 1, fillPattern = 0)
+        val negative = Graphic.RoundedBox(x = 3, y = -5, width = 10, height = 1, fillPattern = 0)
+        val n = node(List(5) { Line(emptyList()) }, listOf(pastTheEnd, negative))
+
+        val html = HtmlSpans.renderGrid(n) { null }
+
+        assertTrue(html.contains("top:5em;left:3ch"), html)
+        assertTrue(html.contains("top:0em;left:3ch"), html)
+    }
+
+    @Test
+    fun renderGridNeedsOnlyTopForAMultiRowGraphic() {
+        // A height=3 RoundedBox (the real y=55,height=3 corpus case) is positioned by its start
+        // row alone — VectorGraphicSvg already sizes the graphic's own markup `height`em tall, so
+        // no per-row bucketing/spanning is needed here.
+        val roundedBox = Graphic.RoundedBox(x = 2, y = 4, width = 10, height = 3, fillPattern = 0)
+        val n = node(List(8) { Line(emptyList()) }, listOf(roundedBox))
+
+        val html = HtmlSpans.renderGrid(n) { null }
+
+        assertTrue(html.contains("<div style=\"position:absolute;z-index:1;top:4em;left:2ch\">"), html)
+        assertEquals(1, Regex("position:absolute").findAll(html).count())
     }
 
     @Test
