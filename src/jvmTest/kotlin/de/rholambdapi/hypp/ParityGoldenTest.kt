@@ -23,6 +23,10 @@ class ParityGoldenTest {
         val json = open(bytes).toCanonicalJson()
         assertEquals(json, open(bytes).toCanonicalJson(), "canonical JSON must be stable across repeated opens")
         val goldenFile = File("doc/goldens/$name.json")
+        // Rewrite-in-place escape hatch for the rare deliberate spec-reading change, so a golden
+        // never has to be hand-edited: `HYPP_REGENERATE_GOLDENS=1 ./gradlew jvmTest --rerun-tasks`,
+        // then read the resulting `git diff` as the review. Never set this in CI.
+        if (System.getenv("HYPP_REGENERATE_GOLDENS") == "1") goldenFile.writeText(json)
         check(goldenFile.exists()) { "missing golden: ${goldenFile.path}" }
         assertEquals(goldenFile.readText(), json, "golden mismatch for $name")
     }

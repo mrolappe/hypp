@@ -58,6 +58,9 @@ private const val LABEL_LENGTH_BIAS = 32
 
 private const val MAX_CROSS_REFERENCES = 12
 
+/** A line's x-length is signed (-127..126) and stored excess-128, so no NUL byte can result. */
+private const val LINE_X_LENGTH_BIAS = 128
+
 /** Decodes a format base-255 value: two bytes, low digit first, each biased by +1 to avoid NUL. */
 private fun decodeBase255(lo: Int, hi: Int): Int = (hi - 1) * 255 + (lo - 1)
 
@@ -208,8 +211,12 @@ internal fun parseNode(
                 val height = u8(pos + 6)
                 val flags = u8(pos + 7)
                 graphics += when (type) {
+                    // A line's width byte is the `@line` command's *signed* x-length (-127..126)
+                    // stored excess-128 — the format's usual NUL-avoiding bias, applied to a
+                    // signed field. Box/RoundedBox widths at this same offset are plain unsigned.
+                    // See `doc/format-notes.md`.
                     ESC_LINE -> Graphic.Line(
-                        x, y, width, height,
+                        x, y, width - LINE_X_LENGTH_BIAS, height,
                         arrowAtStart = flags and 1 != 0, arrowAtEnd = flags and 2 != 0, lineStyle = flags shr 2,
                     )
                     ESC_BOX -> Graphic.Box(x, y, width, height, fillPattern = flags)

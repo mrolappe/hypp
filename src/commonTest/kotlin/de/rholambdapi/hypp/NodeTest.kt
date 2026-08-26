@@ -98,6 +98,34 @@ class NodeTest {
         )
     }
 
+    /**
+     * A line's width byte is the `@line` command's signed x-length stored excess-128, not an
+     * unsigned column count — see `doc/format-notes.md`. Boxes' width bytes in the very same
+     * nodes are plain unsigned, which is what makes this Line-specific.
+     */
+    @Test
+    fun stGuideLineWidthsDecodeAsSignedXLengths() {
+        val doc = open(TestCorpus.stGuideOrigEn)
+        fun linesOf(name: String) = doc.nodes.single { it.name == name }.graphics.filterIsInstance<Graphic.Line>()
+
+        // The 14 short connectors between the icon row and its captions are purely vertical
+        // (x-length 0); their raw 0x80 width byte was previously read as a 128-column line.
+        val connectors = linesOf("Symbol bar").filter { it.height > 1 }
+        assertEquals(14, connectors.size)
+        assertTrue(connectors.all { it.width == 0 }, "connector widths: ${connectors.map { it.width }}")
+
+        // "Main"'s lines are short corner brackets over a page no wider than 64 columns.
+        assertEquals(setOf(0, 2), linesOf("Main").map { it.width }.toSet())
+
+        // The arrow fan is symmetric about its origin column — negative x-length is real, and
+        // the byte order 112..144 is a smooth run, not wraparound garbage.
+        val fan = linesOf("Lines, arrows and boxes").filter { it.x == 17 && it.y == 10 }
+        assertEquals(listOf(-16, -15, -13, -9, -4, 4, 9, 13, 15, 16), fan.map { it.width })
+
+        // Document-wide: every decoded x-length stays inside the spec's -127..126 range.
+        assertTrue(doc.nodes.flatMap { it.graphics }.filterIsInstance<Graphic.Line>().all { it.width in -127..126 })
+    }
+
     @Test
     fun hcpMainNodeHasWindowTitleAndCrossReferences() {
         val doc = open(TestCorpus.hcpOrigEn)

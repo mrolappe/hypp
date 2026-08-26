@@ -430,6 +430,89 @@ padding, a min/clamp formula, fixed marker-unit strings, an abs-value endpoint) 
 document-derived text reaches any output sink; every interpolated value is already the same
 validated `Int`/`Double` model data this renderer emitted before.
 
+## Group B done: `Graphic.Line.width` is a signed excess-128 x-length (2026-08-26)
+
+Per `doc/PLAN` "there are issues at cozy floyd" (Group B, bug 4). Spike-then-fix, as the plan
+required — `Node.kt` was not touched until the byte evidence was in.
+
+**Symptom.** Every `Graphic.Line` parsed out of `st-guide_orig_en.hyp` had an implausible width:
+"Main"'s lines were 128/130 on a page ≤64 columns; "Symbol bar"'s 14 short vertical connectors were
+*all* exactly 128 (0x80) despite obviously differing lengths; the standard page rule was 199. Box
+and RoundedBox widths in the very same nodes were clean small values, so the record offsets
+themselves were not misaligned.
+
+**Spike (B1).** New report-only raw-byte scan,
+`src/jvmTest/kotlin/de/rholambdapi/hypp/LineGraphicScan.kt`, run via `./gradlew lineGraphicScan`
+(network-free, not part of `build`/`check`; same style as `CorpusSweep.kt`'s `ESC 0xa4` scan). It
+walks each decompressed node's prologue exactly as `parseNode` does — so record starts are real, not
+scavenged — and dumps every `ESC 0x33/0x34/0x35` body tagged with its node name, alongside four
+candidate reinterpretations of the width byte plus a document-wide histogram. Kept permanently (B5):
+it is cheap, offline, and is the standing evidence behind the `doc/format-notes.md` entry.
+
+**Confirmed root cause.** The line width byte is the HCP `@line` command's **signed x-length stored
+excess-128** (`xLength = byte - 128`), not an unsigned column count and not two's complement.
+`hcpcmds.ui` documents the parameter ranges as `X-offset: 1..255`, `X-length: -127..126`,
+`Y-length: 0..254`; −127..126 biased by 128 lands on bytes 1..254, which is the format's usual
+NUL-avoiding motive (as with the base-255 fields) applied to a signed one-byte field. `hypfmt.ui`'s
+shared graphic-object field list says only "1 byte width of the object in characters" and never
+reconciles the two — the documented gap.
+
+Byte evidence (all from the scan; full detail in `doc/format-notes.md`):
+
+- "Lines, arrows and boxes" has a ten-arrow fan sharing origin `x=17, y=10` with width bytes
+  `112 113 115 119 124 132 137 141 143 144` → `-16 -15 -13 -9 -4 +4 +9 +13 +15 +16`, exactly
+  symmetric about zero. Two's complement gives `112 … -124 -119 …` — not symmetric, which is why the
+  earlier "just sign-extend it" hypothesis was correctly rejected.
+- "Symbol bar"'s 14 connectors all decode to x-length **0** — purely vertical, which is precisely
+  what a connector between an icon row and its caption is. Their real differing lengths live in
+  `height` (3 or 5), so the suspicious uniformity turned out to be correct data read wrongly.
+- The page rule at the top of 51 nodes is `[01 02 01 c7 01 31]` → `x=1, x-length=71, height=1`:
+  columns 1..72, matching the fixture's page width (it was rendering 199 columns wide — the
+  "too-wide horizontal rule" symptom).
+- Box/RBox records interleaved at the same body offset are plain unsigned (`w=32/16/8/4/2` with
+  `h=16/8/4/2/1`), and the line drawn across the largest box decodes to x-length 32 — exactly that
+  box's width. **Box/RoundedBox therefore need no change and were left untouched.**
+- Across the whole fixture no line width byte falls outside 112..199 (x-lengths −16..+71) — a tight
+  cluster around 128 that no other reading explains.
+
+**Fix (B3).** One line in `Node.kt`'s `ESC_LINE` branch: `width - LINE_X_LENGTH_BIAS` (128), with
+the constant and a comment naming the gap. `Graphic.Line`'s KDoc now states that, alone among the
+graphics, its `width` is signed. Nothing downstream needed adapting: `VectorGraphic.kt` already does
+`dx = width` and `VectorGraphicSvg.kt` already handles negative `dx` (Group A's `dx=-10` case).
+
+TDD red→green: new `NodeTest.stGuideLineWidthsDecodeAsSignedXLengths` asserts Symbol bar's 14
+connectors are all 0 (not uniformly 128), Main's widths are `{0, 2}`, the arrow fan is the exact
+symmetric sequence above, and every line width document-wide lands in the spec's −127..126. Confirmed
+failing against the pre-fix parser before the change was made.
+
+**Existing tests (B4).** No regressions. Every other `Graphic.Line` in the test suite is
+hand-constructed (`HtmlRendererTest`, `HtmlSpansTest`, `EpubRendererTest`, `ReflowTest`,
+`VectorGraphicTest`), so the parser change cannot reach them; `NodeTest.linesHypDrawsBoxesAndLines`
+asserts `y` and the flag decomposition only, never `width`/`x`.
+
+**Goldens.** `doc/goldens/{lines,hcp_orig_en,st_guide_orig_en}.json` regenerated. Diff reviewed
+mechanically as well as by eye: **258 changed fields, all of them `"width"` inside a `line` graphic,
+every delta exactly −128, no other key or value moved anywhere in the three files.** New width range
+across the corpus: −20..71. Regeneration is now a documented escape hatch rather than a hand-edit —
+`HYPP_REGENERATE_GOLDENS=1 ./gradlew jvmTest --rerun-tasks`, then read `git diff` as the review.
+
+This is a `src/commonMain` core-library fix, so it is format-agnostic: it benefits any renderer that
+ever reads `Graphic`, though today only HTML/EPUB do (Markdown/AsciiDoc/Org/ANSI drop `node.graphics`
+by construction, and `Reflow.kt` passes `width` through untouched).
+
+Verification: `./gradlew clean build` green across `jvm`/`wasmJs`/`wasmWasi`/`macosArm64`;
+`hypp-cli`'s own `clean build` green including the `macosArm64SmokeTest`/`wasmWasiSmokeTest`
+real-binary checks.
+
+Security review: no findings. The change is internal integer decoding — one subtraction on a value
+already parsed from the same byte — introducing no new output sink and no new document-derived text.
+The result is *more* constrained than before (a bounded −127..126 instead of an unbounded 0..255),
+and every consumer already clamps or takes `abs()`. The new `LineGraphicScan.kt` is a
+`jvmTest`-scoped, offline, opt-in reporter over a vendored fixture; it prints only integers and
+already-trusted entry names, and is excluded from `build`/`check`. `ParityGoldenTest`'s
+`HYPP_REGENERATE_GOLDENS` hatch is a test-only, opt-in file write under `doc/goldens/` with a fixed
+path — noted in-comment as never to be set in CI, since it would mask a real golden regression.
+
 ## User-reported EPUB/PDF rendering bugs (2026-08-22): two fixed, one open
 
 Diagnosed from a user's visual comparison of the generated EPUB/PDF against `hypview`'s own

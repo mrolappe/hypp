@@ -65,3 +65,12 @@ val corpusSweep by tasks.registering(JavaExec::class) {
     mainClass.set("de.rholambdapi.hypp.CorpusSweepKt")
     args(layout.projectDirectory.dir("build/corpusSweep/cache").asFile.absolutePath)
 }
+
+// Report-only raw-byte scan of line/box/rbox graphic records in the vendored st-guide fixture —
+// evidence for the Line x-length encoding (doc/format-notes.md). Network-free, not part of check.
+val lineGraphicScan by tasks.registering(JavaExec::class) {
+    dependsOn("jvmTestClasses")
+    val jvmTest = kotlin.jvm().compilations.getByName("test")
+    classpath = jvmTest.output.allOutputs + jvmTest.runtimeDependencyFiles
+    mainClass.set("de.rholambdapi.hypp.LineGraphicScanKt")
+}

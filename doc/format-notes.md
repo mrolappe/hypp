@@ -264,6 +264,56 @@ with zero diagnostics. No entry in `hcp_orig_en.hyp` or `st-guide_orig_en.hyp`
 has `compDiff == 0`, which is why phase 3's sweep over those two documents never
 surfaced the case.
 
+## A line's width byte is a *signed* x-length stored excess-128; a box's is plain unsigned
+
+**Gap:** `hypfmt.ui`'s graphic-object layout gives one shared field list for
+image/line/box/rbox — "1 byte width of the object in characters" — with no
+mention of signedness or of a bias, and it names the base-255 encoding only
+for the index and Y-offset fields. But the HCP `@line` command's own
+documentation (`hcpcmds.ui`, "Command @line") states the parameter ranges as
+`X-offset: 1..255`, `X-length: -127..126`, `Y-length: 0..254`, with a negative
+x-length meaning "a line from upper right to lower left". Nothing in either
+document says how a signed −127..126 fits into that one unsigned byte, and
+neither is the width listed as base-255. Reading it as a plain unsigned byte
+produced nonsense: every line in `st-guide_orig_en.hyp` came out 112..199
+columns wide on pages no wider than ~72 columns.
+
+**Resolution:** for `ESC 0x33` (line) only, the width byte is the x-length
+stored **excess-128**: `xLength = byte - 128`. That maps the documented
+−127..126 onto bytes 1..254, keeping NUL out of node data — the same
+NUL-avoiding motive as the base-255 fields, applied to a signed one-byte
+field. `ESC 0x34`/`ESC 0x35` (box/rbox) widths at the *same* body offset are
+plain unsigned counts and must not be biased. Height is untouched in both
+cases.
+
+**Evidence:** a report-only raw-byte scan of every graphic record in
+`st-guide_orig_en.hyp` (`./gradlew lineGraphicScan`,
+`src/jvmTest/kotlin/de/rholambdapi/hypp/LineGraphicScan.kt`):
+
+- Node "Lines, arrows and boxes" contains a fan of ten arrows sharing an
+  origin, all `x=17, y=10`, with width bytes
+  `112 113 115 119 124 132 137 141 143 144` → x-lengths
+  `-16 -15 -13 -9 -4 +4 +9 +13 +15 +16`: exactly symmetric about zero, which
+  no unsigned or two's-complement reading produces (two's complement gives
+  `112 113 115 119 124 −124 −119 −115 −113 −112`).
+- Node "Symbol bar"'s 14 short connectors between the icon row and its
+  captions all carry width byte `128` → x-length `0`, i.e. purely vertical —
+  their differing lengths live in `height` (3 or 5), so the uniformity was
+  real data, not a misread offset. Their raw bodies, e.g.
+  `[08 10 01 80 03 03]` and `[12 10 01 80 05 03]`.
+- The standard page rule at the top of 51 nodes is `[01 02 01 c7 01 31]` →
+  `x=1, x-length=71, height=1`: one row spanning columns 1..72, matching the
+  fixture's page width. Read unsigned it was a 199-column rule.
+- Box/rbox records interleaved in those same nodes at the same body offset
+  carry small plain values — e.g. "Lines, arrows and boxes" has
+  `box x=1 y=2 w=32 h=16`, `box w=16 h=8`, `w=8 h=4`, `w=4 h=2`, `w=2 h=1`,
+  and the line drawn across the largest of them is `x=1 y=2` with width byte
+  `160` → x-length `32`, exactly that box's width. Biasing box widths too
+  would turn them all negative.
+- Across the whole fixture no line width byte falls outside 112..199, i.e.
+  x-lengths −16..+71 — a tight cluster around 128 that only the excess-128
+  reading explains.
+
 ## Line/box/rbox `Data` byte: bit0/bit1/rest decomposition doesn't match `lines.hyp`'s filename labels
 
 **Gap:** the prose spec says a line's data byte is bit0 = arrow at start,

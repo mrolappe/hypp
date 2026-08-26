@@ -42,7 +42,11 @@ sealed interface Graphic {
         }
     }
 
-    /** `arrowAtStart`/`arrowAtEnd` and `lineStyle` are the data byte's bit 0, bit 1 and remaining bits. */
+    /**
+     * `arrowAtStart`/`arrowAtEnd` and `lineStyle` are the data byte's bit 0, bit 1 and remaining bits.
+     * Unlike every other [Graphic], [width] is *signed* (-127..126): it is the `@line` command's
+     * x-length, negative meaning the line runs bottom-left to top-right. See `doc/format-notes.md`.
+     */
     data class Line(
         override val x: Int,
         override val y: Int,
