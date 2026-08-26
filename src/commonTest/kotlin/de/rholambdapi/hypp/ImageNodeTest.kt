@@ -70,4 +70,28 @@ class ImageNodeTest {
         assertEquals(listOf(0, 0, 0, -1), rgba.copyOfRange(0, 4).map { it.toInt() })
         assertEquals(listOf(-1, -1, -1, -1), rgba.copyOfRange(4, 8).map { it.toInt() })
     }
+
+    @Test
+    fun fourPlanePensAreBlockConcatenatedLowPlaneFirstAndResolveThroughTheGemPenMapping() {
+        // 4x1, 4 planes, all present. rowBytes = ceil(4/16)*2 = 2, so each plane is 2 bytes and the
+        // four planes follow one another whole (not word-interleaved), plane 0 carrying bit value 1.
+        // Target pens, left to right: 0 (0000), 4 (0100), 10 (1010), 15 (1111).
+        val header = byteArrayOf(0, 4, 0, 1, 4, 0b1111, 0, 0)
+        val planes = byteArrayOf(
+            0b0001_0000, 0, // plane 0 (bit value 1): pixel 3 only
+            0b0011_0000, 0, // plane 1 (bit value 2): pixels 2, 3
+            0b0101_0000, 0, // plane 2 (bit value 4): pixels 1, 3
+            0b0011_0000, 0, // plane 3 (bit value 8): pixels 2, 3
+        )
+        val image = parseImage(NodeIndex(0), "synthetic", header + planes, mutableListOf())!!
+        assertEquals(listOf(0, 4, 10, 15), image.pixels.map { it.toInt() })
+        // Those pens are Atari ST hardware palette registers, not VDI colour indices: 0/4 map to
+        // themselves, but 10 is dark green (not VDI 10, dark red) and 15 is black (not dark magenta).
+        val expected = listOf(HypColor.WHITE, HypColor.BLUE, HypColor.DARK_GREEN, HypColor.BLACK)
+        assertEquals(expected, (0 until 4).map { Palette.forPlaneCount(4).colorAt(image.pixels[it].toInt()) })
+        assertEquals(
+            expected.flatMap { listOf(it.red, it.green, it.blue, 255) },
+            image.toRgba().map { it.toInt() and 0xFF },
+        )
+    }
 }

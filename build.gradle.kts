@@ -74,3 +74,12 @@ val lineGraphicScan by tasks.registering(JavaExec::class) {
     classpath = jvmTest.output.allOutputs + jvmTest.runtimeDependencyFiles
     mainClass.set("de.rholambdapi.hypp.LineGraphicScanKt")
 }
+
+// Report-only pen histogram + downsampled art for the multi-plane images in the vendored st-guide
+// fixture — evidence for the bitplane pixel-value encoding (doc/format-notes.md). Not part of check.
+val imagePlaneScan by tasks.registering(JavaExec::class) {
+    dependsOn("jvmTestClasses")
+    val jvmTest = kotlin.jvm().compilations.getByName("test")
+    classpath = jvmTest.output.allOutputs + jvmTest.runtimeDependencyFiles
+    mainClass.set("de.rholambdapi.hypp.ImagePlaneScanKt")
+}

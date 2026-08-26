@@ -571,3 +571,59 @@ for all 21 of the 22 external-ref targets that fall in-range; `EXTERNAL_REF`/`SY
 the `<a>` wrapper (render plain text) or point at an anchor with the external file/node name for
 `ToExternalRef`, since no `.REF` file is loaded to know a real destination path. Not investigated
 further or fixed — found while regenerating output for a visual review, not the round's task.
+
+## Round: image bitplane pixel values are Atari ST hardware pens (plan Group C, Bug 6)
+
+**Symptom (reported against `hypview`'s rendering of `st-guide_orig_en.hyp`, "Main" node):** the
+round "documentation" stamp in the banner image renders red but should be green, and the subtitle
+under the wordmark renders lilac/purple but should be black.
+
+**Investigation (spike first, no code touched).** Added `src/jvmTest/.../ImagePlaneScan.kt` +
+`./gradlew imagePlaneScan` — a report-only scan of every multi-plane image in the vendored fixture
+(same shape as `LineGraphicScan`), printing a pixel-value histogram, per-value bounding boxes, a
+downsampled by-value art dump, and a rendered PNG. The fixture has exactly one multi-plane image:
+index 77, 528x153, `planeCount=4`, `planePresent=255`, `planeFilled=0`. Under the existing decode it
+yields four values — 0 (69.55%), 4 (20.56%), 10 (7.65%), 15 (2.24%) — read as `HypColor` ordinals:
+`WHITE`, `BLUE`, `DARK_RED`, `DARK_MAGENTA`. Exactly the reported red and purple.
+
+**The plan's hypothesis (wrong concatenation order) was ruled out, not confirmed.** The art dump
+showed the current order already produces a *coherent* picture — a wordmark on the left, a round
+stamp on the right (`x = 364..510`), a thin subtitle band (`y = 115..137`) — not the noise a wrong
+bit order would give; and `hypfmt.ui`'s "1st Plane / Optional 2nd Plane / ..." enumeration says
+planes are stored whole and sequentially, which is what the code does. The decisive argument
+against reordering: `WHITE` and `BLUE` are already *correct* (the blue wordmark was never
+reported as wrong), and every candidate reordering that turns value 10 or 15 into green/black also
+moves value 4 off blue. So `decodePixels()` is right and is unchanged by this round.
+
+**Root cause.** A bitplane pixel value is an Atari ST *hardware palette register* ("pen"), not a
+GEM VDI colour index. `HypColor`'s ordinal is a VDI index — correct for the `0xa5`/`0xa6` text
+colour escapes, which really do carry VDI indices (phase 6, `colors.hyp`), but wrong for image
+pixels. GEM permutes pens and VDI indices, differently per plane count; at 1 plane the permutation
+is the identity, which is why every single-plane fixture always looked right and the bug stayed
+hidden. `hypfmt.ui` never states what a pixel value means, so this was a real documented gap.
+
+**Fix.** `Palette.forPlaneCount(planeCount)` applies the standard GEM pen→VDI table (4-plane row
+corpus-confirmed here, 2-plane row the documented convention with no corpus case, others identity);
+`ImageNode.toRgba()` defaults to it instead of `Palette.AtariSt`. `ImageNode.pixels` keeps its raw
+pen values — that is what the bytes actually are, and the golden
+(`doc/goldens/st_guide_orig_en.json`, which captures `pixels`) is therefore unchanged, as
+`ParityGoldenTest` confirms. `HypColor`'s RGB table was **not** touched; it was out of scope and the
+pen mapping alone resolved both symptoms.
+
+**Verification.** Mapped pen→VDI, image 77's four values become `WHITE`/`BLUE`/`DARK_GREEN`/`BLACK`,
+and the rendered PNG reads "ST-Guide" in blue over "fairware from holger weets" in black beside a
+green "ST-Guide documentation" stamp — matching hypview by eye and fixing both reported colours with
+a zero-free-parameter table. Two tests, both confirmed red against the pre-fix code and green after:
+`ImageNodeTest.fourPlanePensAreBlockConcatenatedLowPlaneFirstAndResolveThroughTheGemPenMapping`
+(hand-built 4x1 4-plane bytes hitting pens 0/4/10/15 — locks the plane order *and* the mapping) and
+`hypp-cli`'s new `StGuideBannerColorTest`, which encodes the real image 77 through both
+`StoredPngEncoder` and `ImageIoPngEncoder`, decodes the PNG back with `javax.imageio.ImageIO` as an
+independent oracle, and asserts the exact per-colour pixel counts plus the stamp's and subtitle's
+bounding boxes. `./gradlew clean build` green in both builds.
+
+**Security review** (binary pixel decode into an image encoder — no text/attribute output sink):
+clean. The only new indexing is `Palette.forPlaneCount`'s fixed 4- and 16-entry tables, indexed by a
+pen value that comes from `decodePixels()`, which composes it from at most `planeCount <= 8` bit
+positions; `Palette.colorAt` already uses `getOrElse` so an out-of-range pen degrades to black
+rather than throwing. `decodePixels()` itself is unchanged, so its existing bounds behaviour is
+untouched. No new unbounded array indexing, no new parsing of attacker-controlled lengths.

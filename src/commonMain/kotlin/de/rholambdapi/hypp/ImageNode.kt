@@ -6,10 +6,11 @@ package de.rholambdapi.hypp
  * followed by one bitplane per bit set in [planePresent], each stored as `ceil(width/16)*2`
  * bytes per row (word-aligned, MSB-first pixel per bit), planes concatenated in ascending plane
  * order — not word-interleaved. Confirmed against `image.hyp`/`limage.hyp`/`limage2.hyp`: their
- * declared plane data length equals `ceil(width/16)*2*height` exactly in all four images. Every
- * vendored image is single-plane, so the multi-plane concatenation order and the "present vs.
- * filled vs. neither" combination below are implemented literally from the prose spec, not
- * corpus-confirmed — see `doc/format-notes.md`.
+ * declared plane data length equals `ceil(width/16)*2*height` exactly in all four images, and
+ * against `st-guide_orig_en.hyp`'s 4-plane image 77, whose four distinct pens land on coherent
+ * regions of a legible banner under this order and on noise under any other — see
+ * `doc/format-notes.md`. The "present vs. filled vs. neither" combination below still comes
+ * literally from the prose spec: no vendored image sets `planeFilled`.
  */
 class ImageNode(
     val index: NodeIndex,
@@ -21,10 +22,14 @@ class ImageNode(
     val planeFilled: Int,
     private val planeData: ByteArray,
 ) {
-    /** One palette index per pixel, row-major, plane 0 contributing the low bit. Lazy + memoised. */
+    /**
+     * One Atari ST hardware palette register ("pen") per pixel, row-major, plane 0 contributing
+     * the low bit. A pen is *not* a [HypColor] ordinal — resolve it through
+     * [Palette.forPlaneCount]. Lazy + memoised.
+     */
     val pixels: ByteArray by lazy { decodePixels() }
 
-    fun toRgba(palette: Palette = Palette.AtariSt): ByteArray {
+    fun toRgba(palette: Palette = Palette.forPlaneCount(planeCount)): ByteArray {
         val out = ByteArray(pixels.size * 4)
         for (i in pixels.indices) {
             val color = palette.colorAt(pixels[i].toInt() and 0xFF)
