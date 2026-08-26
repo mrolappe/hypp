@@ -375,6 +375,61 @@ part of the phase roadmap:
 4. **Library documentation for human and agentic/AI consumers** — see
    `doc/guide/` (`overview.md`, `concepts.md`, `api.md`).
 
+## Group A done: four SVG rendering-fidelity bugs fixed (2026-08-26)
+
+Per `doc/PLAN` "there are issues at cozy floyd" (Group A, bugs 1/2/3/5). Same two files as Task 1
+(`VectorGraphicSvg.kt`, `VectorGraphic.kt`), one focused commit per fix, TDD red-green throughout.
+
+1. **Box stroke was clipped, boxes rendered smaller than their nominal footprint**
+   (`VectorGraphicSvg.kt`, `Box.toSvg()`). The `<rect>` spanned the full `0,0,w,h` viewBox with
+   `stroke-width="0.08"` centered on the path — SVG's default clipping cut the outer half of the
+   stroke (0.04 units) on all 4 edges. Fixed by padding the viewBox by the full stroke width and
+   offsetting the rect by half the stroke width (`x=y="0.04"`), while keeping the `<svg>`
+   `width`/`height` (`ch`/`em`) at the box's original nominal `w`×`h`. New test
+   `boxStrokeIsFullyContainedWithinTheViewBox` parses the rendered `viewBox`/`rect`/`stroke-width`
+   and asserts the stroke's outer edge never exceeds the viewBox bounds.
+2. **`RoundedBox` rendered as a pill/stadium shape on short boxes** (`VectorGraphic.kt`). The fixed
+   `ROUNDED_BOX_CORNER_RADIUS_CELLS = 1.0` constant ignored the box's own height; SVG clamps `ry` to
+   `height/2`, so a `height=1`/`height=2` `RoundedBox` (both present in the real corpus) rendered
+   with fully-rounded stadium ends. Replaced with `roundedBoxCornerRadius(width, height) =
+   min(1.0, min(width, height) / 4.0)`. New test
+   `shortRoundedBoxCornerRadiusIsClampedToHalfHeightNotAFixedConstant` asserts `height=1`/`height=2`
+   cases stay `<= height/2`.
+3. **Arrow markers were real filled triangles but invisible on long lines**
+   (`VectorGraphicSvg.kt`, `ARROW_START_MARKER`/`ARROW_END_MARKER`). No `markerUnits` meant the SVG
+   default `markerUnits="strokeWidth"` applied, scaling the `markerWidth="4"` marker to an absolute
+   `0.32` viewBox units against the line's `stroke-width="0.08"` — imperceptible on the corpus's
+   100+-unit-long lines. Fixed by adding `markerUnits="userSpaceOnUse"` and sizing both markers at
+   `markerWidth="0.8" markerHeight="0.8"` (absolute viewBox units, independent of stroke width). New
+   test `arrowMarkersUseAbsoluteUserSpaceSizingSoTheyDontShrinkWithStrokeWidth` asserts both marker
+   defs carry `markerUnits="userSpaceOnUse"`.
+4. **A vertical line (`dx=0`) rendered as a 1-unit diagonal, not vertical**
+   (`VectorGraphicSvg.kt`, `Line.toSvg()`). `val w = abs(dx).coerceAtLeast(1)` (needed to avoid a
+   degenerate zero-width viewBox) was reused as `x2`, so `dx=0` produced `x2=1` instead of `x2=0`.
+   Fixed by keeping the viewBox/`width` clamp (`w`) separate from the endpoint coordinate, which now
+   derives from the real unclamped `abs(dx)` — `dx=0` now yields `x1==x2==0`. New test
+   `zeroDxLineIsTrulyVerticalNotDiagonal` asserts `x1==x2` for a `dx=0, dy>0` line.
+
+Verified against the real corpus fixture (not just unit tests): rendered `st-guide_orig_en.hyp`'s
+"Lines, arrows and boxes" node via `HtmlRenderer` (`java -jar hypp-cli-all.jar dump ... --format
+html`), with and without `--reflow`. Confirmed in the raw output: every `<rect>` now has
+`x="0.04" y="0.04"` inside a `viewBox` padded by `0.08` (fix 1); the node's `RoundedBox` entries show
+a spread of `rx`/`ry` values (`0.25`/`0.5`/`0.75`/`1.0`) driven by each box's own height rather than
+a uniform `1.0` — the `height=1` box is `rx="0.25"`, well under a stadium shape (fix 2); both
+`<marker>` defs in the shared `<defs>` carry `markerWidth="0.8" markerHeight="0.8"
+markerUnits="userSpaceOnUse"` (fix 3). No `dx=0` line exists in this particular corpus node, so fix
+4 is covered by its unit test only. `--reflow` output shows the same fixes intact (rounded-box radii
+spread `0.25`–`1.0`, stroke padding, marker units all present), confirming `Reflow.kt`'s row-only
+remapping doesn't disturb any of these fields, as expected.
+
+`./gradlew hypp-cli:build` green across all three targets (`jvm`, `wasmWasi`, `macosArm64`),
+including the `macosArm64SmokeTest`/`wasmWasiSmokeTest` real-binary checks.
+
+Security review: no findings. All four changes are numeric SVG attribute arithmetic (stroke-width
+padding, a min/clamp formula, fixed marker-unit strings, an abs-value endpoint) — no new
+document-derived text reaches any output sink; every interpolated value is already the same
+validated `Int`/`Double` model data this renderer emitted before.
+
 ## User-reported EPUB/PDF rendering bugs (2026-08-22): two fixed, one open
 
 Diagnosed from a user's visual comparison of the generated EPUB/PDF against `hypview`'s own

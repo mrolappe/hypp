@@ -58,4 +58,14 @@ class VectorGraphicTest {
         assertEquals(1, vector.fillLevel)
         assertTrue(vector.cornerRadiusCells > 0.0)
     }
+
+    @Test
+    fun shortRoundedBoxCornerRadiusIsClampedToHalfHeightNotAFixedConstant() {
+        // A fixed 1.0 radius exceeds height/2 on short boxes, so SVG clamps `ry` to a stadium shape.
+        val height1 = Graphic.RoundedBox(x = 0, y = 0, width = 10, height = 1, fillPattern = 0).toVectorGraphic()
+        assertTrue(height1.cornerRadiusCells <= 1 / 2.0, "radius ${height1.cornerRadiusCells} exceeds height/2 for height=1")
+
+        val height2 = Graphic.RoundedBox(x = 0, y = 0, width = 10, height = 2, fillPattern = 0).toVectorGraphic()
+        assertTrue(height2.cornerRadiusCells <= 2 / 2.0, "radius ${height2.cornerRadiusCells} exceeds height/2 for height=2")
+    }
 }

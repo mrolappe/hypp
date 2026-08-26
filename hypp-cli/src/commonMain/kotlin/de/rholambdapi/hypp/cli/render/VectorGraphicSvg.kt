@@ -31,21 +31,27 @@ object VectorGraphicSvg {
     fun VectorGraphic.Box.toSvg(): String {
         val w = widthCells.coerceAtLeast(1)
         val h = heightCells.coerceAtLeast(1)
+        val strokeWidth = 0.08
+        val pad = strokeWidth / 2
         return buildString {
-            append("<svg viewBox=\"0 0 $w $h\" width=\"${w}ch\" height=\"${h}em\" style=\"mix-blend-mode:multiply\">")
-            append("<rect x=\"0\" y=\"0\" width=\"$w\" height=\"$h\" rx=\"$cornerRadiusCells\" ry=\"$cornerRadiusCells\"")
-            append(" fill=\"url(#fill-$fillLevel)\" stroke=\"black\" stroke-width=\"0.08\"/>")
+            // viewBox is padded by strokeWidth on top of the box's nominal w x h footprint (the
+            // <svg> width/height stay w x h) so the outer half of the centered stroke isn't
+            // clipped by SVG's default viewBox clipping.
+            append("<svg viewBox=\"0 0 ${w + strokeWidth} ${h + strokeWidth}\" width=\"${w}ch\" height=\"${h}em\" style=\"mix-blend-mode:multiply\">")
+            append("<rect x=\"$pad\" y=\"$pad\" width=\"$w\" height=\"$h\" rx=\"$cornerRadiusCells\" ry=\"$cornerRadiusCells\"")
+            append(" fill=\"url(#fill-$fillLevel)\" stroke=\"black\" stroke-width=\"$strokeWidth\"/>")
             append("</svg>")
         }
     }
 
     fun VectorGraphic.Line.toSvg(): String {
-        val w = abs(dx).coerceAtLeast(1)
+        val absDx = abs(dx)
+        val w = absDx.coerceAtLeast(1) // clamped only for the viewBox/width so dx=0 isn't a degenerate zero-width viewBox
         val h = dy.coerceAtLeast(0)
         val viewH = h.coerceAtLeast(1)
         val x1 = 0
         val y1 = if (dx >= 0) 0 else h
-        val x2 = w
+        val x2 = absDx // unclamped: dx=0 must keep x2==x1 so the line stays vertical, not a 1-unit diagonal
         val y2 = if (dx >= 0) h else 0
         return buildString {
             append("<svg viewBox=\"0 0 $w $viewH\" width=\"${w}ch\" height=\"${viewH}em\" style=\"mix-blend-mode:multiply\">")
@@ -77,9 +83,12 @@ object VectorGraphicSvg {
         }
     }
 
+    // markerUnits="userSpaceOnUse" pins the marker to absolute viewBox units instead of the SVG
+    // default (markerUnits="strokeWidth"), which scaled these to an imperceptible 0.32 units
+    // against the 0.08 line stroke-width regardless of line length.
     private const val ARROW_START_MARKER =
-        """<marker id="arrow-start" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="black"/></marker>"""
+        """<marker id="arrow-start" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="0.8" markerHeight="0.8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="black"/></marker>"""
 
     private const val ARROW_END_MARKER =
-        """<marker id="arrow-end" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="black"/></marker>"""
+        """<marker id="arrow-end" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="0.8" markerHeight="0.8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="black"/></marker>"""
 }

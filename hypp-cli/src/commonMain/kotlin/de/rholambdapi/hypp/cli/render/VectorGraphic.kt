@@ -29,8 +29,13 @@ sealed interface VectorGraphic {
     ) : VectorGraphic
 }
 
-/** Fixed corner radius for [Graphic.RoundedBox] — the format gives no radius parameter to derive one from. */
-private const val ROUNDED_BOX_CORNER_RADIUS_CELLS = 1.0
+/**
+ * Corner radius for [Graphic.RoundedBox] — the format gives no radius parameter to derive one
+ * from, so this is capped at 1.0 cell but shrinks on short/narrow boxes; a fixed 1.0 exceeds
+ * height/2 on e.g. height=1/2 boxes, which SVG clamps `ry` on, producing a stadium/pill shape.
+ */
+private fun roundedBoxCornerRadius(widthCells: Int, heightCells: Int): Double =
+    minOf(1.0, minOf(widthCells, heightCells) / 4.0)
 
 private val LINE_STYLE_DASH: Map<Int, List<Int>?> = mapOf(
     0 to null, // unset - renders the same as solid
@@ -56,7 +61,7 @@ fun Graphic.Box.toVectorGraphic(): VectorGraphic.Box =
     VectorGraphic.Box(widthCells = width, heightCells = height, cornerRadiusCells = 0.0, fillLevel = fillPattern.coerceIn(0, 8))
 
 fun Graphic.RoundedBox.toVectorGraphic(): VectorGraphic.Box =
-    VectorGraphic.Box(widthCells = width, heightCells = height, cornerRadiusCells = ROUNDED_BOX_CORNER_RADIUS_CELLS, fillLevel = fillPattern.coerceIn(0, 8))
+    VectorGraphic.Box(widthCells = width, heightCells = height, cornerRadiusCells = roundedBoxCornerRadius(width, height), fillLevel = fillPattern.coerceIn(0, 8))
 
 /** Ordered (Bayer 4x4) dither matrix shared by [VectorGraphicSvg] and [VectorGraphicRaster] so both fill-density gradients match. */
 internal val BAYER_4X4 = intArrayOf(
