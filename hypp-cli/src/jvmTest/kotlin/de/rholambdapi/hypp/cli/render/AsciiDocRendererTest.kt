@@ -1,6 +1,7 @@
 package de.rholambdapi.hypp.cli.render
 
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AsciiDocRendererTest {
@@ -40,5 +41,51 @@ class AsciiDocRendererTest {
                 "missing block anchor for node ${node.index.value} (${node.name})",
             )
         }
+    }
+
+    // --- Group F: targets with no section of their own ---
+
+    @Test
+    fun aPopupBecomesANoteAdmonitionAndNotASectionOfItsOwn() {
+        val output = AsciiDocRenderer.render(StubTargetFixture.document())
+
+        assertTrue(output.contains("*Pop*\n\n[NOTE]\n====\npopup body\n====\n"), output)
+        // Before Group F the popup was a `== Pop` section reached by a `link:#1[Pop]` fragment.
+        assertFalse(output.contains("== Pop"), output)
+        assertFalse(output.contains("link:#1["), output)
+    }
+
+    @Test
+    fun externalRefsAndSystemActionsAreParentheticalsRatherThanDeadFragments() {
+        val output = AsciiDocRenderer.render(StubTargetFixture.document())
+
+        assertTrue(output.contains("*RefLink* _(external reference: reflink.hyp/Main)_"), output)
+        assertTrue(
+            output.contains("*Quit* _(viewer action, not available in this document: stool.Tos)_"),
+            output,
+        )
+        assertFalse(output.contains("link:#2["), output)
+        assertFalse(output.contains("link:#3["), output)
+        assertTrue(output.contains("link:#4[Other]"), output)
+    }
+
+    @Test
+    fun aRefNameCarryingAsciiDocMetacharactersIsEscapedTheAsciiDocWay() {
+        val output = AsciiDocRenderer.render(StubTargetFixture.document(refName = "*b*_i_.hyp/#c#+d+"))
+
+        assertTrue(
+            output.contains("_(external reference: \\*b\\*\\_i\\_.hyp/\\#c\\#\\+d\\+)_"),
+            output,
+        )
+    }
+
+    @Test
+    fun aRefNameCannotSmuggleRawHtmlThroughAsciiDocsPassthroughMacro() {
+        // `pass:[…]` is AsciiDoc's raw-passthrough macro — the one construct in this dialect that
+        // turns document text into live markup in asciidoctor's HTML output.
+        val output = AsciiDocRenderer.render(StubTargetFixture.document(refName = "pass:[<script>alert(1)</script>]"))
+
+        assertFalse(output.contains("pass:[<script>"), output)
+        assertTrue(output.contains("pass:\\[<script>alert(1)</script>\\]"), output)
     }
 }

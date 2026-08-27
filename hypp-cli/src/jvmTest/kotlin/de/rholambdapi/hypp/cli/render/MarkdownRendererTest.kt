@@ -1,6 +1,7 @@
 package de.rholambdapi.hypp.cli.render
 
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MarkdownRendererTest {
@@ -40,5 +41,42 @@ class MarkdownRendererTest {
                 "missing anchor for node ${node.index.value} (${node.name})",
             )
         }
+    }
+
+    // --- Group F: targets with no section of their own ---
+
+    @Test
+    fun aPopupBecomesAGfmNoteAlertAndNotASectionOfItsOwn() {
+        val output = MarkdownRenderer.render(StubTargetFixture.document())
+
+        assertTrue(output.contains("**Pop**\n\n> [!NOTE]\n> popup body\n"), output)
+        // Before Group F the popup was a `## Pop` section reached by a `[Pop](#1)` fragment.
+        assertFalse(output.contains("## Pop"), output)
+        assertFalse(output.contains("[Pop](#1)"), output)
+    }
+
+    @Test
+    fun externalRefsAndSystemActionsAreParentheticalsRatherThanDeadFragments() {
+        val output = MarkdownRenderer.render(StubTargetFixture.document())
+
+        assertTrue(output.contains("**RefLink** _(external reference: reflink.hyp/Main)_"), output)
+        assertTrue(
+            output.contains("**Quit** _(viewer action, not available in this document: stool.Tos)_"),
+            output,
+        )
+        assertFalse(output.contains("](#2)"), output)
+        assertFalse(output.contains("](#3)"), output)
+        // An ordinary node still gets a real, resolvable fragment.
+        assertTrue(output.contains("[Other](#4)"), output)
+    }
+
+    @Test
+    fun aRefNameCarryingMarkdownMetacharactersIsEscapedTheMarkdownWay() {
+        val output = MarkdownRenderer.render(StubTargetFixture.document(refName = "*b*_i_.hyp/[x](y)`c`"))
+
+        assertTrue(
+            output.contains("_(external reference: \\*b\\*\\_i\\_.hyp/\\[x\\](y)\\`c\\`)_"),
+            output,
+        )
     }
 }

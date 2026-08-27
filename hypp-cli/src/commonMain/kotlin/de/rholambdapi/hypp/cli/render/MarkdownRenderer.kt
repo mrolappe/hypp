@@ -11,6 +11,13 @@ object MarkdownRenderer : Renderer {
         underlineOpen = "<u>",
         underlineClose = "</u>",
         link = { label, target -> "[$label](#$target)" },
+        // GFM's alert syntax: a block quote whose first line is the alert type. Rendered inline at
+        // the link site, so it opens with the label and a blank line to leave the quote its own block.
+        popup = { label, content ->
+            "**$label**\n\n> [!NOTE]\n" +
+                content.lines().joinToString("\n") { if (it.isEmpty()) ">" else "> $it" } + "\n"
+        },
+        stub = { label, description -> "**$label** _($description)_" },
         // GFM/CommonMark headings auto-slug their anchor from the heading text, not an arbitrary
         // id, so `[label](#0)` needs an explicit raw-HTML anchor (permitted inline in both
         // dialects) rather than relying on the heading's own generated fragment.

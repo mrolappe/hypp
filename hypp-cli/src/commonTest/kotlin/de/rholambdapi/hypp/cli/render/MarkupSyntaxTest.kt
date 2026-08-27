@@ -27,15 +27,29 @@ class MarkupSyntaxTest {
     private val underlined = styled(8)
     private val boldItalic = styled(1 or 4)
 
-    private fun entry(name: String) = IndexEntry(
-        len = 0, type = IndexEntry.TYPE_INTERNAL, seek = 0, compDiff = 0,
+    private fun entry(name: String, type: Int = IndexEntry.TYPE_INTERNAL) = IndexEntry(
+        len = 0, type = type, seek = 0, compDiff = 0,
         next = 0, prev = 0, toc = 0, name = name, compressedLength = 0,
     )
 
-    private fun node(index: Int, name: String, lines: List<Line>) = Node(
-        index = NodeIndex(index), name = name, kind = NodeKind.TEXT, windowTitle = null,
+    private fun node(index: Int, name: String, lines: List<Line>, kind: NodeKind = NodeKind.TEXT) = Node(
+        index = NodeIndex(index), name = name, kind = kind, windowTitle = null,
         graphics = emptyList(), crossReferences = emptyList(), dataBlocks = emptyList(),
         objectTable = emptyList(), lines = lines,
+    )
+
+    private fun line(vararg spans: Span) = Line(spans.toList())
+
+    private fun text(text: String) = Span(text, TextStyle.Normal)
+
+    private fun linkSpan(target: Int, label: String) =
+        Span(label, TextStyle.Normal, Link(LinkKind.LINK, NodeIndex(target), null, label))
+
+    /** [entries] and [nodes] are index-aligned, as they are in a real parsed document. */
+    private fun documentOf(entries: List<IndexEntry>, nodes: List<Node>) = HypDocument(
+        header = Header(itableSize = 0, itableCount = entries.size, compilerVersion = 3, compilerOs = 2),
+        extendedHeaders = emptyList(), entries = entries, charset = HypCharset.Default,
+        nodes = nodes, images = emptyList(), diagnostics = emptyList(),
     )
 
     private val document = HypDocument(
@@ -76,6 +90,8 @@ class MarkupSyntaxTest {
         italicOpen = "_", italicClose = "_",
         underlineOpen = "++", underlineClose = "++",
         link = { label, target -> "[$label](#$target)" },
+        popup = { label, content -> "POPUP($label){$content}" },
+        stub = { label, description -> "STUB($label|$description)" },
         heading = { level, text, _ -> "#".repeat(level) + " " + text },
         escape = { it.replace("*", "\\*") },
     )
@@ -131,5 +147,91 @@ class MarkupSyntaxTest {
             nodes = listOf(node(0, "Bare", emptyList())), images = emptyList(), diagnostics = emptyList(),
         )
         assertEquals("## Bare", renderMarkup(headingOnly, syntax))
+    }
+
+    // --- Targets with no section of their own (Group F; the same three cases HtmlSpans covers) ---
+
+    @Test
+    fun aPopupTargetIsInlinedAtTheLinkSiteAndGetsNoSectionOfItsOwn() {
+        // Before Group F both nodes got a `## heading` section and the link was an ordinary
+        // fragment, so a popup read as a page of its own — which ST-Guide never shows it as.
+        val doc = documentOf(
+            listOf(entry("Home"), entry("Pop", IndexEntry.TYPE_POPUP)),
+            listOf(
+                node(0, "Home", listOf(line(text("see "), linkSpan(1, "Pop")))),
+                node(1, "Pop", listOf(line(text("first")), line(text("second"))), NodeKind.POPUP),
+            ),
+        )
+
+        assertEquals("## Home\nsee POPUP(Pop){first\nsecond}", renderMarkup(doc, syntax))
+    }
+
+    @Test
+    fun popupsThatLinkToEachOtherDoNotRecurse() {
+        val doc = documentOf(
+            listOf(entry("Home"), entry("A", IndexEntry.TYPE_POPUP), entry("B", IndexEntry.TYPE_POPUP)),
+            listOf(
+                node(0, "Home", listOf(line(linkSpan(1, "A")))),
+                node(1, "A", listOf(line(linkSpan(2, "B"))), NodeKind.POPUP),
+                node(2, "B", listOf(line(linkSpan(1, "A"))), NodeKind.POPUP),
+            ),
+        )
+
+        // A popup reached from inside a popup degrades to its plain label — one level deep is all
+        // an inline construct can nest legibly anyway, and it is what makes the walk terminate.
+        assertEquals("## Home\nPOPUP(A){B}", renderMarkup(doc, syntax))
+    }
+
+    @Test
+    fun anExternalRefIsStubbedRatherThanLinked() {
+        val doc = documentOf(
+            listOf(entry("Home"), entry("reflink.hyp/Main", IndexEntry.TYPE_EXTERNAL_REF)),
+            listOf(node(0, "Home", listOf(line(linkSpan(1, "RefLink"))))),
+        )
+
+        val rendered = renderMarkup(doc, syntax)
+        assertEquals("## Home\nSTUB(RefLink|external reference: reflink.hyp/Main)", rendered)
+        assertFalse(rendered.contains("(#1)"), rendered)
+    }
+
+    @Test
+    fun aSystemActionIsStubbedRatherThanLinked() {
+        val doc = documentOf(
+            listOf(entry("Home"), entry("stool.Tos", IndexEntry.TYPE_QUIT)),
+            listOf(node(0, "Home", listOf(line(linkSpan(1, "Quit"))))),
+        )
+
+        assertEquals(
+            "## Home\nSTUB(Quit|viewer action, not available in this document: stool.Tos)",
+            renderMarkup(doc, syntax),
+        )
+    }
+
+    @Test
+    fun anOrdinaryNodeTargetIsStillAnOrdinaryLink() {
+        val doc = documentOf(
+            listOf(entry("Home"), entry("Other")),
+            listOf(
+                node(0, "Home", listOf(line(linkSpan(1, "Other")))),
+                node(1, "Other", listOf(line(text("tail")))),
+            ),
+        )
+
+        assertEquals("## Home\n[Other](#1)\n\n## Other\ntail", renderMarkup(doc, syntax))
+    }
+
+    @Test
+    fun headingsLabelsAndStubDescriptionsAllGoThroughEscape() {
+        // Every one of these is raw `.hyp` bytes reaching a markup sink; only `escape` knows how to
+        // neutralise them for the dialect at hand.
+        val doc = documentOf(
+            listOf(entry("*Home*"), entry("*evil*.hyp/*node*", IndexEntry.TYPE_EXTERNAL_REF)),
+            listOf(node(0, "*Home*", listOf(line(linkSpan(1, "*Ref*"))))),
+        )
+
+        assertEquals(
+            "## \\*Home\\*\nSTUB(\\*Ref\\*|external reference: \\*evil\\*.hyp/\\*node\\*)",
+            renderMarkup(doc, syntax),
+        )
     }
 }

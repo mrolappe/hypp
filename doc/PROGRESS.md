@@ -843,3 +843,145 @@ for *every* link, so a corrupt input would have crashed the renderer instead of 
 the root — both accessors now fall through to `ResolvedTarget.Missing`, one guard in the shared
 dispatch rather than one at each call site — with `anEntryWhoseObjectFailedToParseIsMissingRather
 ThanACrash` in `ResolvedTargetTest`. `./gradlew clean build` green in both projects.
+
+## Group F done: popups + external refs in Markdown/AsciiDoc/Org (2026-08-27)
+
+Per `doc/PLAN` "there are issues at cozy floyd" (Group F, the plan's final group). Group E fixed
+bugs 8 + 9 for the two HTML-shaped renderers; the three plain-text dialects had the identical defect
+behind an identical cause, and this round closes it. **This completes the plan** — every group
+A–F is done and pushed; ANSI is deliberately left filed as a follow-up (see the end of this entry).
+
+**Symptoms.** All four popup nodes in `st-guide_orig_en.hyp` were emitted as ordinary `## heading` /
+`== heading` / `** heading` sections, so a transient over-the-page note read as a page of its own;
+and all 22 `TYPE_EXTERNAL_REF` targets (plus the one `SYSTEM` entry) rendered as `[label](#N)` /
+`link:#N[label]` / `[[#N][label]]` fragments pointing at anchors that no section ever emits.
+
+**Root cause (the same one as Group E).** `MarkupSyntax.link: (label: String, target: Int) -> String`
+only ever saw a raw index, exactly as `HtmlSpans`'s pre-E `linkHref` did, so nothing could branch on
+what the index resolves to; and `renderMarkup` gave every node a heading unconditionally.
+
+### F1 — the shared walker resolves targets, and the dialect owns the substitute
+
+`MarkupSyntax` gains two hooks alongside `link`, one per target class that has no section to jump to:
+
+```kotlin
+val link:  (label: String, target: Int) -> String      // an ordinary node
+val popup: (label: String, content: String) -> String  // a NodeKind.POPUP node
+val stub:  (label: String, description: String) -> String  // external ref / system action
+```
+
+`renderMarkup` resolves each `Span.link` via `HypDocument.resolve()` and dispatches to one of the
+three; popup nodes are filtered out of the top-level section loop, matching `HtmlRenderer`.
+
+**How this differs from Group E's `HtmlSpans` shape, and why.** E gave the renderer one
+`LinkMarkup` callback plus a separate `isStubTarget()` firebreak and a `stubContent()` that returns
+finished markup. Here the *walker* decides which of three hooks to call and the dialect supplies
+only the markup, because:
+
+- These three renderers are declarative `MarkupSyntax` values, not classes with a `render` body —
+  there is nowhere for them to call a `stubContent()`-style helper from, and no `document` in scope.
+  Pushing the decision into the walker is what keeps them declarative.
+- HTML/EPUB need a two-phase answer (`isStubTarget` during the page walk, `stubContent` in a
+  separate `<dialog>`/`<details>` emission pass) because their popup markup lives somewhere other
+  than the link site. All three text dialects inline at the link site, so one phase suffices.
+- Consequently the firebreak is different too: an `insidePopup: Boolean` threaded through the walk,
+  rather than a render-free predicate. Inside a popup a further popup degrades to its plain label,
+  which terminates on mutually-linked popups (`popupsThatLinkToEachOtherDoNotRecurse`).
+
+The *data* is shared with Group E as the plan asked — the same `ResolvedTarget` variants, the same
+`ExternalRef.fileName`/`nodeName` pair, the same `IndexEntry.name` — but none of its markup;
+`stubContent`'s HTML wording stays in `HtmlSpans`, and `MarkupSyntax` has its own shorter
+parenthetical phrasing (`external reference: hcp.hyp/Main`) that suits an inline aside.
+
+**One deliberate widening, since it is the same sink class.** `escape` now also covers the heading
+text and the link label, not just span text. Both are raw `.hyp` bytes and both previously reached
+the output unescaped — a pre-existing hole in the exact place this round is otherwise hardening, and
+one word to close in the shared walker rather than three times in three dialects.
+
+### F2/F3/F4 — the three dialects
+
+| | popup | external ref / system action |
+|---|---|---|
+| Markdown | GFM alert: `**Label**` + blank line + `> [!NOTE]` block-quote | `**Label** _(external reference: hcp.hyp/Main)_` |
+| AsciiDoc | `[NOTE]` attribute + `====` example block | `*Label* _(…)_` |
+| Org | `#+BEGIN_QUOTE` … `#+END_QUOTE` | `*Label* /(…)/` |
+
+No `#<n>`-equivalent fragment is emitted for a stub at all, since it would be dead by construction.
+
+**Org: quote block, not `[fn:N]` footnote.** The plan offered either. A footnote needs a definition
+parked at the end of the document plus a unique-`N` allocator — document-level state this stateless
+per-span walk does not have, and it would have forced F1's `popup` hook to return two things (an
+inline marker and a deferred definition) purely for Org's benefit. It would also put Org alone in
+producing an out-of-line result. `#+BEGIN_QUOTE` needs neither, and matches where the other two
+dialects put the content.
+
+### F5 — TDD
+
+Red first in every case. Dialect-agnostic walker behaviour in `MarkupSyntaxTest` (commonTest, so it
+runs on all three targets): popup inlined and given no section, mutual-popup firebreak, external ref
+and system action stubbed rather than linked, ordinary node still an ordinary link, and
+`headingsLabelsAndStubDescriptionsAllGoThroughEscape`. Per-dialect assertions in the three
+`*RendererTest` files off a shared `StubTargetFixture` (jvmTest) holding one of each target class —
+the corpus has no entry name carrying dialect metacharacters, so the fixture parameterises
+`refName`/`popupText` and that is how each renderer's escaping is exercised against its own
+`escape`, never HTML's. Each also asserts the *old* behaviour is gone (`## Pop`, `link:#1[`,
+`[[#1]`), which is what makes them regression tests rather than snapshots.
+
+### Verification (real corpus, not just unit tests)
+
+`./gradlew run -Pargs="dump src/commonTest/resources/corpus/st-guide_orig_en.hyp --format
+markdown|asciidoc|org [--reflow] --out …"`, six renders, checked by script:
+
+- **Headings 63 → 59** in all three formats — exactly the 59 `INTERNAL` entries; the 4 `POPUP`
+  entries no longer get a section (`inspect` reports 59 INTERNAL / 4 POPUP / 22 EXTERNAL_REF /
+  15 IMAGE / 1 SYSTEM = 101).
+- **0 dead fragments** in all three formats, both with and without `--reflow`: every `](#N)` /
+  `link:#N[` / `[[#N]` has a matching `<a id="N">` / `[#N]` / `:CUSTOM_ID: N`. All 52 surviving
+  links resolve.
+- 10 admonition/quote blocks (the 4 popups are linked from 10 sites), 39 external-ref stubs (22
+  entries, 39 link sites), 1 viewer-action stub — identical counts across all six renders.
+- Spot-checked output reads correctly, e.g. the `case insensitive` popup now appears as a `> [!NOTE]`
+  quote inline in the search-function page rather than as a stray `## case insensitive` section.
+
+`./gradlew clean build` green across all `hypp-cli` targets (`jvm`, `macosArm64`, `wasmWasi`).
+
+### Security review (this round's diff only)
+
+The stub text is again a real output sink — untrusted `.hyp` bytes into Markdown/AsciiDoc/Org — and
+HTML escaping does *not* carry over, so each dialect's own `escape` was checked against its own
+syntax rather than assumed. Two issues found, both fixed in-round:
+
+1. **AsciiDoc: raw-HTML injection via `pass:[…]` (MEDIUM, fixed).** `escape` covered `*_#`, backtick
+   and `+` but not brackets, so an entry named `pass:[<script>alert(1)</script>]` reached the
+   `.adoc` intact and asciidoctor would render it as live markup on HTML conversion — AsciiDoc's
+   one construct that promotes document text to markup. `[`/`]` are now escaped (`\[` keeps the
+   bracket literal, so no macro or attribute list can form), which also stops a `]` in a link label
+   closing `link:#N[…]` early. Guarded by
+   `aRefNameCannotSmuggleRawHtmlThroughAsciiDocsPassthroughMacro`.
+2. **Org: escaping only the leading character was no protection here (fixed).** The old rule
+   backslashed a marker only at position 0, and a stub description *always* starts with `external
+   reference: ` / `viewer action, …`, so a `*evil*` in a filename would never have been escaped at
+   all. Org has no general escape character; emphasis only *opens* at a line start or after
+   whitespace/opening punctuation, so `escape` now backslashes a marker in those positions and
+   leaves inert closing markers alone. `ponytail:` comment records the remaining approximation
+   (start-or-after-space vs. `org-emphasis-regexp`'s full pre-char set).
+
+Markdown's `escape` was already correct for its own syntax (`\ ` backtick `* _ [ ] < >`; escaping
+`<` is what keeps raw HTML out) and needed no change. No HIGH findings. The `#<N>` interpolations
+are `Int` node indices throughout, never document text.
+
+**Acknowledged, not fixed (pre-existing, outside this diff):** Org's `#+BEGIN_EXPORT html` block is
+raw-HTML injection if a `.hyp` line *starts* with it. This round's two new sinks cannot reach it —
+a heading is prefixed `** `, a stub description is prefixed by its own wording — so only ordinary
+span text is exposed, which predates Group F. Fixing it needs line-position awareness that the
+per-span `escape` hook does not have by design; filed for a future round.
+
+### ANSI: still deferred, recommended as its own follow-up
+
+`AnsiRenderer.kt`/`AnsiStyle.kt` were deliberately untouched, per the plan. `AnsiStyle.styledLines`
+drops `Span.link` **entirely** today — links are not even styled differently, let alone pointed
+anywhere — so there is nothing for a popup/external-ref fix to attach to. Recommend filing
+**"ANSI renderer drops link information"** as its own round: it is a prerequisite refactor of
+`styledLines`'s per-segment model, independent of and prior to any ANSI popup/external-ref work, and
+was out of proportion to this one. The `> [!NOTE]`-equivalent for ANSI would then be an indented,
+dim-styled block; the stub, plain text plus a parenthetical exactly as here.
