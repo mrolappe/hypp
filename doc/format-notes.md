@@ -369,6 +369,57 @@ by-value art dump and a rendered PNG as ongoing evidence.
 filled vs. neither" combination remains prose-only, exercised by synthetic
 tests alone.
 
+## `x == 0` is the only centring signal, and it is an *image-only* signal; the graphic `width` byte separates `@image` from `@limage`
+
+**Gap:** `Graphic.centered` was implemented as `x == 0` on the whole `Graphic`
+hierarchy, with a doc comment claiming that reading was "confirmed empirically"
+against `image.hyp`/`limage.hyp`/`limage2.hyp`/`lines.hyp`. Those four fixtures
+happen to contain no case that contradicts it, so the claim was really "not yet
+falsified", not "confirmed" — and applying it to `@line`/`@box`/`@rbox` was
+never checked against the spec at all.
+
+**Resolution, part 1 — no better signal exists, and it is images-only.** Both
+sources state `x == 0` and neither offers a second, more explicit flag:
+`hypfmt.ui`'s graphic-object layout says "1 byte X-offset in characters (X == 0
+for centered images)", and `hyp.h`'s `x_offset` comment gives the valid ranges
+per command — `@line`/`@box`/`@rbox` **1-255**, `@image`/`@limage` **0-255**
+with "(0 == centered)". So zero is not a placement mode a vector graphic can
+even carry; for those it is a column, or malformed data. `centered` therefore
+lives on `Graphic.Image` only, not on the `Graphic` interface.
+
+**Resolution, part 2 — `width == 1` marks `@limage`.** `hypfmt.ui` annotates
+the graphic `width` byte "(width == 1 for @limage)" and `hyp.h` spells the same
+out ("value used internally: 0, or 1 for limage"; `height` "value written to
+file: 0"). So for an image the `width` byte is not a width at all — it is the
+flag that separates the format's two image commands, and the earlier claim that
+`width`/`height` are "present on the wire but ignored by the format for images
+(real files carry 0 for both)" was wrong.
+
+The distinction is load-bearing for any renderer, because the two commands lay
+out differently. Per the HCP command reference for `@limage`: "images
+incorporated in this way will be treated by ST-Guide as lines (limage == line
+image), meaning that text cannot be placed to either the left or the right of
+them and it isn't necessary to insert blank lines below the image, as ST-Guide
+will automatically move the following text down by a distance depending on the
+height of the image and the current font." A plain `@image` is the opposite —
+an overlay drawn on top of the character grid, on rows the author left blank
+for it.
+
+**Evidence:** `st-guide_orig_en.hyp` uses both, and only the two together
+explain what its pages look like. Its 29 image placements are 1 with `width ==
+1` (the 528×153 "ST-Guide" banner on "Main", at `x = 0`, i.e. centred) and 28
+with `width == 0` (the 32×24 toolbar icons on "Symbol bar" and the icon pages,
+at `x = 3, 13, 23, …`). "Symbol bar" is the control case for overlays: its
+icons sit at rows 11/13/15 and the node's own text has blank lines at exactly
+those rows. "Main" is the control case for line images: its 14 text lines are a
+dense two-column table of contents with *no* blank rows, so an overlay reading
+of its banner puts a 66-cell-wide, ~9-row-tall image straight on top of the
+whole table of contents — which is exactly the bug this note came out of.
+`limage.hyp`/`limage2.hyp` (all placements `width == 1`) and `image.hyp` (all
+`width == 0`) agree, and the previously-passing test
+`NodeTest.limageHypPlacesLineHeightImages()` had already recorded the `width ==
+1` observation without drawing the conclusion from it.
+
 ## Image pixel values are Atari ST hardware pens, not VDI colour indices
 
 **Gap:** `hypfmt.ui` describes an image's planes but never says what a decoded

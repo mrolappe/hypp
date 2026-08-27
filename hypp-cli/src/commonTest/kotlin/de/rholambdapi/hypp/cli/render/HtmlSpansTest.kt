@@ -162,17 +162,84 @@ class HtmlSpansTest {
         assertTrue(html.contains("<div style=\"position:absolute;z-index:1;top:2em;left:5ch\">"), html)
     }
 
+    private fun textLine(text: String) = Line(listOf(Span(text, TextStyle.Normal)))
+
     @Test
     fun renderGridCentersAGraphicWhenXIsZero() {
+        // `x == 0` means centred for images only, and centred means "within this node's own text
+        // column" — the character grid the rest of the node is laid out on — not within a viewport
+        // whose width the .hyp format knows nothing about.
+        val graphic = Graphic.Image(NodeIndex(1), x = 0, y = 1, width = 0, height = 0, ditherMask = null)
+        val n = node(listOf(textLine("0123456789"), textLine("012345")), listOf(graphic))
+
+        val html = HtmlSpans.renderGrid(n) { "<img/>" }
+
+        assertTrue(
+            html.contains(
+                "<div style=\"position:absolute;z-index:1;top:1em;left:calc(10ch / 2);transform:translateX(-50%)\">",
+            ),
+            html,
+        )
+    }
+
+    @Test
+    fun renderGridPlacesAVectorGraphicAtItsRawXEvenWhenThatXIsZero() {
+        // The format gives @line/@box/@rbox an x of 1-255 — "centred" is not one of their
+        // placement modes, so a zero there is a column, never a centring request.
         val graphic = Graphic.Line(x = 0, y = 1, width = 10, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
         val n = node(List(2) { Line(emptyList()) }, listOf(graphic))
 
         val html = HtmlSpans.renderGrid(n) { null }
 
-        assertTrue(
-            html.contains("<div style=\"position:absolute;z-index:1;top:1em;left:50%;transform:translateX(-50%)\">"),
+        assertTrue(html.contains("top:1em;left:0ch"), html)
+        assertTrue(!html.contains("translateX"), html)
+    }
+
+    @Test
+    fun renderGridFlowsALineImageBetweenTheRowsItSplitsInsteadOfOverlayingThem() {
+        // The st-guide "Main" bug: its banner is an @limage (width == 1), which ST-Guide treats as
+        // a line — the text below it moves down. Rendered as an overlay it landed on top of the
+        // node's whole table of contents instead.
+        val banner = Graphic.Image(NodeIndex(1), x = 0, y = 1, width = 1, height = 0, ditherMask = null)
+        val n = node(listOf(textLine("header"), textLine("contents"), textLine("more")), listOf(banner))
+
+        val html = HtmlSpans.renderGrid(n) { "<img/>" }
+
+        assertEquals(
+            "<div style=\"position:relative;line-height:1\"><p style=\"margin:0\">header</p></div>" +
+                "<div style=\"width:8ch;text-align:center\"><img/></div>" +
+                "<div style=\"position:relative;line-height:1\"><p style=\"margin:0\">contents\nmore</p></div>",
             html,
         )
+        assertTrue(!html.contains("position:absolute"), html)
+    }
+
+    @Test
+    fun renderGridOffsetsAnOverlayBelowALineImageIntoItsOwnSegment() {
+        // An overlay's `top:<row>em` is only meaningful relative to the rows it shares a container
+        // with — once a line image pushes the rows below it down, its overlays must move too.
+        val banner = Graphic.Image(NodeIndex(1), x = 3, y = 1, width = 1, height = 0, ditherMask = null)
+        val box = Graphic.Box(x = 2, y = 3, width = 4, height = 1, fillPattern = 0)
+        val n = node(List(5) { textLine("0123456") }, listOf(banner, box))
+
+        val html = HtmlSpans.renderGrid(n) { "<img/>" }
+
+        assertTrue(html.contains("<div style=\"margin-left:3ch\"><img/></div>"), html)
+        assertTrue(html.contains("position:absolute;z-index:1;top:2em;left:2ch"), html)
+    }
+
+    @Test
+    fun anOverlayClampedPastTheLastRowIsStillDrawnOnlyOnceAlongsideALineImageThere() {
+        // Both clamp to row == lines.size, which makes the segment *before* the line image end
+        // there too — the out-of-range overlay must not be claimed by that segment and again by
+        // the trailing one.
+        val banner = Graphic.Image(NodeIndex(1), x = 2, y = 99, width = 1, height = 0, ditherMask = null)
+        val box = Graphic.Box(x = 4, y = 99, width = 3, height = 1, fillPattern = 0)
+        val n = node(List(2) { textLine("ab") }, listOf(banner, box))
+
+        val html = HtmlSpans.renderGrid(n) { "<img/>" }
+
+        assertEquals(1, Regex("position:absolute").findAll(html).count(), html)
     }
 
     @Test

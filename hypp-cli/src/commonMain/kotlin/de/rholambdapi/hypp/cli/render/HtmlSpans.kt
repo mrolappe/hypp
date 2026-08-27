@@ -74,15 +74,50 @@ object HtmlSpans {
     private const val CONTROL_PICTURES_BASE = 0x2400
 
     /**
-     * Renders [node]'s lines and graphics as one positioned container: all lines as a single
-     * `<p style="margin:0">` (row order preserved by a literal `\n` per line — [HTML_BODY_STYLE]'s
-     * `white-space:pre-wrap` keeps that meaningful), every [Graphic] as an absolutely positioned
-     * sibling `<div>` at `top:<row>em;left:<column>ch`. `line-height:1` on the container plus
-     * `top:<row>em` on each graphic is what keeps a graphic aligned with its real text row — a
-     * multi-row graphic (`height > 1`) needs no special handling here since its own markup (from
-     * [vectorGraphicMarkup]) is already sized `<height>em` tall by [VectorGraphicSvg]. `x == 0`
-     * ([Graphic.centered]) renders as `left:50%;transform:translateX(-50%)`, honoring the
-     * documented model semantic instead of leaving it unread.
+     * The node's own text-column width in character cells: the longest line it actually has. The
+     * `.hyp` format has no stored page width, so this is the only grid width a renderer can honor,
+     * and it must be read from the [Node] being rendered — after `--reflow` joined its paragraphs
+     * the same node reports the wider, joined-line width, which is exactly what the caller wants.
+     */
+    fun textColumnWidth(node: Node): Int =
+        node.lines.maxOfOrNull { line -> line.spans.sumOf { it.text.length } } ?: 0
+
+    /**
+     * The `style` attribute (leading space included, empty when there is nothing to cap) that keeps
+     * an `<img>` inside [node]'s text column. An image's stored size is in pixels and says nothing
+     * about how many character cells it may occupy — st-guide's 528px banner is wider than the
+     * whole 64-cell page it sits on — so cap it at [textColumnWidth]. `height:auto` is needed
+     * because the `height` attribute is a presentational hint that would otherwise hold the
+     * original pixel height while the width shrinks, distorting the image.
+     */
+    fun imageSizeStyle(node: Node): String {
+        val columnWidth = textColumnWidth(node)
+        return if (columnWidth == 0) "" else " style=\"width:auto;height:auto;max-width:${columnWidth}ch\""
+    }
+
+    /**
+     * Renders [node]'s lines and graphics, honoring the format's two very different image
+     * placements (see [Graphic.Image.isLineImage]):
+     *
+     * - A plain `@image`, and every vector graphic, is an **overlay** drawn on top of the
+     *   character grid, on rows the author left blank for it. Those render as today: the lines go
+     *   into a single `<p style="margin:0">` (row order preserved by a literal `\n` per line —
+     *   [HTML_BODY_STYLE]'s `white-space:pre-wrap` keeps that meaningful) inside a
+     *   `position:relative;line-height:1` container, and each graphic becomes an absolutely
+     *   positioned sibling `<div>` at `top:<row>em;left:<column>ch`. `line-height:1` plus
+     *   `top:<row>em` is what keeps a graphic on its real text row; a multi-row graphic needs no
+     *   special handling since [vectorGraphicMarkup] already sizes its markup `<height>em` tall.
+     * - An `@limage` is a **line** image: "text cannot be placed to either the left or the right
+     *   of them and it isn't necessary to insert blank lines below the image, as ST-Guide will
+     *   automatically move the following text down" (HCP command reference). So it is emitted as a
+     *   block between two containers, splitting the node's lines at its row — the browser then
+     *   pushes the following text down for us. Splitting into per-segment containers is also what
+     *   keeps the *overlays* correct: each one is positioned `top:<row - segment start>em` inside
+     *   its own segment, so a line image displacing the rows below it displaces its overlays too,
+     *   with no font-metric arithmetic anywhere.
+     *
+     * `x == 0` on an image means centred, and centred means within the node's own text column
+     * ([textColumnWidth]) — not within the viewport, which has nothing to do with the grid.
      *
      * [imageTag] renders one [Graphic.Image] as a complete `<img .../>` string, or null if the
      * referenced image can't be resolved — [HtmlRenderer] and [EpubRenderer] each address an image
@@ -94,18 +129,61 @@ object HtmlSpans {
         linkHref: (NodeIndex) -> String = { "#${it.value}" },
         imageTag: (Graphic.Image) -> String?,
     ): String = buildString {
+        val columnWidth = textColumnWidth(node)
+        fun row(graphic: Graphic) = graphic.y.coerceIn(0, node.lines.size)
+
+        val lineImagesByRow = node.graphics.filterIsInstance<Graphic.Image>()
+            .filter { it.isLineImage }
+            .groupBy(::row)
+        val overlays = node.graphics.filter { it !is Graphic.Image || !it.isLineImage }
+
+        var start = 0
+        for (breakRow in lineImagesByRow.keys.sorted()) {
+            appendSegment(node, start, breakRow, isLastSegment = false, overlays, columnWidth, linkHref, imageTag)
+            for (image in lineImagesByRow.getValue(breakRow)) {
+                val markup = imageTag(image) ?: continue
+                val placement =
+                    if (image.centered) "width:${columnWidth}ch;text-align:center" else "margin-left:${image.x}ch"
+                append("<div style=\"$placement\">").append(markup).append("</div>")
+            }
+            start = breakRow
+        }
+        appendSegment(node, start, node.lines.size, isLastSegment = true, overlays, columnWidth, linkHref, imageTag)
+    }
+
+    /**
+     * Renders rows `[start, end)` and the overlays sitting on them. [isLastSegment] — which is not
+     * the same thing as `end == node.lines.size`, since a line image clamped to the last row makes
+     * an earlier segment end there too — is what claims the out-of-range overlays, so a graphic
+     * whose `y` is past the final row is drawn once rather than once per segment ending there.
+     */
+    private fun StringBuilder.appendSegment(
+        node: Node,
+        start: Int,
+        end: Int,
+        isLastSegment: Boolean,
+        overlays: List<Graphic>,
+        columnWidth: Int,
+        linkHref: (NodeIndex) -> String,
+        imageTag: (Graphic.Image) -> String?,
+    ) {
         append("<div style=\"position:relative;line-height:1\"><p style=\"margin:0\">")
-        node.lines.forEachIndexed { index, line ->
-            if (index > 0) append("\n")
-            for (span in line.spans) append(renderSpan(span, linkHref))
+        for (index in start until end) {
+            if (index > start) append("\n")
+            for (span in node.lines[index].spans) append(renderSpan(span, linkHref))
         }
         append("</p>")
-        for (graphic in node.graphics) {
+        for (graphic in overlays) {
+            val row = graphic.y.coerceIn(0, node.lines.size)
+            if (row < start || (row >= end && !isLastSegment)) continue
             val markup = if (graphic is Graphic.Image) imageTag(graphic) else vectorGraphicMarkup(listOf(graphic))
             if (markup == null) continue
-            val top = graphic.y.coerceIn(0, node.lines.size)
-            val horizontal = if (graphic.centered) "left:50%;transform:translateX(-50%)" else "left:${graphic.x}ch"
-            append("<div style=\"position:absolute;z-index:1;top:${top}em;$horizontal\">")
+            val horizontal = if (graphic is Graphic.Image && graphic.centered) {
+                "left:calc(${columnWidth}ch / 2);transform:translateX(-50%)"
+            } else {
+                "left:${graphic.x}ch"
+            }
+            append("<div style=\"position:absolute;z-index:1;top:${row - start}em;$horizontal\">")
             append(markup)
             append("</div>")
         }

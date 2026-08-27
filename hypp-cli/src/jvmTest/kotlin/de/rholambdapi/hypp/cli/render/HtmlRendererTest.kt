@@ -80,7 +80,9 @@ class HtmlRendererTest {
     }
 
     @Test
-    fun rendersAGraphicWithXZeroAsCentered() {
+    // Centring is an image-only placement in this format (@line/@box/@rbox carry x in 1-255), so a
+    // vector graphic's x is always a plain column — zero included.
+    fun rendersAVectorGraphicWithXZeroAtColumnZero() {
         val line = Graphic.Line(x = 0, y = 0, width = 10, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
         val node = Node(
             index = NodeIndex(0),
@@ -106,7 +108,7 @@ class HtmlRendererTest {
         val html = HtmlRenderer().render(document)
 
         assertTrue(
-            html.contains("<div style=\"position:absolute;z-index:1;top:0em;left:50%;transform:translateX(-50%)\">"),
+            html.contains("<div style=\"position:absolute;z-index:1;top:0em;left:0ch\">"),
             html,
         )
     }
@@ -150,7 +152,14 @@ class HtmlRendererTest {
         val html = HtmlRenderer().render(document)
 
         val expectedDataUri = "data:image/png;base64," + Base64.encode(StoredPngEncoder.encode(image))
-        assertTrue(html.contains("<img width=\"2\" height=\"2\" src=\"$expectedDataUri\">"))
+        // max-width is the node's own text column ("caption", 7 cells) — an image's pixel size says
+        // nothing about how many character cells it may occupy.
+        assertTrue(
+            html.contains(
+                "<img width=\"2\" height=\"2\" style=\"width:auto;height:auto;max-width:7ch\" src=\"$expectedDataUri\">",
+            ),
+            html,
+        )
         assertTrue(html.contains("<p style=\"margin:0\">caption</p>"))
     }
 }

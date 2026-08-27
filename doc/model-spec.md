@@ -124,11 +124,15 @@ other type once superseded by a later one, or at end of prologue.
 ## `Graphic` (sealed, tag = `kind`)
 
 Common fields `x, y, width, height` in **character cells** (confirmed empirically against the image
-fixtures), plus a derived `centered = (x == 0)`.
+fixtures). There is no `centered` on the interface: `x == 0` means centred for images only, whose
+`x` the format defines as 0-255, while `@line`/`@box`/`@rbox` carry `x` in 1-255 (see
+`doc/format-notes.md`).
 
-- `Image { imageIndex: NodeIndex, ditherMask: bytes? }` — `width`/`height` are present on the wire
-  but the format ignores them for images (real files carry 0 for both). `ditherMask` is the payload
-  of an immediately-preceding `0x2f` data block, or null.
+- `Image { imageIndex: NodeIndex, ditherMask: bytes? }` — plus derived `centered = (x == 0)` and
+  `isLineImage = (width == 1)`. For an image the `width` byte is not a width: it is the flag
+  separating `@image` (0, an overlay on the character grid) from `@limage` (1, a *line* image that
+  pushes the following text down); `height` is always 0. `ditherMask` is the payload of an
+  immediately-preceding `0x2f` data block, or null.
 - `Line { arrowAtStart: Bool, arrowAtEnd: Bool, lineStyle: Int }` — from one flags byte: bit 0
   arrow-at-start, bit 1 arrow-at-end, remaining bits (`flags >> 2`) the line style.
 - `Box { fillPattern: Int }`.
@@ -210,7 +214,8 @@ variant in v1).
    a consumer could desync from the span.
 3. Attribute escapes are absolute, not incremental — a new text-attribute escape replaces the whole
    6-bit vector, it does not toggle individual bits on top of the previous style.
-4. `Graphic.centered` is derived (`x == 0`), never a separate wire flag.
+4. `Graphic.Image.centered` is derived (`x == 0`), never a separate wire flag — and it exists on
+   `Image` alone, because the format defines centring for `@image`/`@limage` only.
 5. A dangling reference (link, cross-reference, image placement) is dropped but never silently loses
    the surrounding text/structure — `DanglingNodeReference` is recorded and whatever text existed
    around it is preserved.

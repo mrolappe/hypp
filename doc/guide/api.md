@@ -162,14 +162,16 @@ sealed interface Graphic {
     val y: Int
     val width: Int
     val height: Int
-    val centered: Boolean   // x == 0
 
     class Image(
         val imageIndex: NodeIndex,   // resolve via HypDocument.image()
         override val x: Int, override val y: Int,
-        override val width: Int, override val height: Int,  // present on wire but ignored by the format
+        override val width: Int, override val height: Int,  // width is a command flag, height is 0
         val ditherMask: ByteArray?,  // not corpus-evidenced; see doc/format-notes.md
-    ) : Graphic
+    ) : Graphic {
+        val centered: Boolean       // x == 0 — the format defines centring for images only
+        val isLineImage: Boolean    // width == 1, i.e. @limage: pushes the following text down
+    }
 
     data class Line(
         override val x: Int, override val y: Int,

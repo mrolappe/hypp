@@ -18,10 +18,11 @@ fun hyp2text(document: HypDocument): String = buildString {
 }
 
 private fun describe(graphic: Graphic): String {
-    val where = "at ${if (graphic.centered) "centre" else graphic.x.toString()},${graphic.y} " +
+    val centred = graphic is Graphic.Image && graphic.centered
+    val where = "at ${if (centred) "centre" else graphic.x.toString()},${graphic.y} " +
         "${graphic.width}x${graphic.height}"
     return when (graphic) {
-        is Graphic.Image -> "image ${graphic.imageIndex.value} $where"
+        is Graphic.Image -> "${if (graphic.isLineImage) "limage" else "image"} ${graphic.imageIndex.value} $where"
         is Graphic.Line -> "line $where style=${graphic.lineStyle}" +
             (if (graphic.arrowAtStart) " arrow-start" else "") + (if (graphic.arrowAtEnd) " arrow-end" else "")
         is Graphic.Box -> "box $where fill=${graphic.fillPattern}"

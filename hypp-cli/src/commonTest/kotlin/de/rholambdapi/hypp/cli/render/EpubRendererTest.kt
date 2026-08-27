@@ -223,7 +223,36 @@ class EpubRendererTest {
     }
 
     @Test
-    fun lineGraphicWithXZeroIsCentered() {
+    fun imageWithXZeroIsCenteredOnTheNodesTextColumn() {
+        val pic = image(1)
+        val centred = Graphic.Image(pic.index, x = 0, y = 1, width = 0, height = 0, ditherMask = null)
+        val doc = document(
+            listOf(
+                node(
+                    0,
+                    "Introduction",
+                    lines = listOf(Line(listOf(Span("Title text", TextStyle.Normal))), Line(emptyList())),
+                    graphics = listOf(centred),
+                ),
+            ),
+            images = listOf(pic),
+        )
+
+        val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
+
+        assertTrue(
+            xhtml.contains(
+                "<div style=\"position:absolute;z-index:1;top:1em;left:calc(10ch / 2);transform:translateX(-50%)\">",
+            ),
+            xhtml,
+        )
+        assertTrue(xhtml.contains("style=\"width:auto;height:auto;max-width:10ch\""), xhtml)
+    }
+
+    @Test
+    fun lineGraphicWithXZeroSitsAtColumnZero() {
+        // The format's centring signal is `x == 0` on an image; @line/@box/@rbox carry x in 1-255,
+        // so a zero there is a column, not a centring request.
         val rule = Graphic.Line(x = 0, y = 1, width = 40, height = 1, arrowAtStart = true, arrowAtEnd = false, lineStyle = 0)
         val doc = document(
             listOf(
@@ -238,10 +267,7 @@ class EpubRendererTest {
 
         val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
 
-        assertTrue(
-            xhtml.contains("<div style=\"position:absolute;z-index:1;top:1em;left:50%;transform:translateX(-50%)\">"),
-            xhtml,
-        )
+        assertTrue(xhtml.contains("<div style=\"position:absolute;z-index:1;top:1em;left:0ch\">"), xhtml)
     }
 
     @Test

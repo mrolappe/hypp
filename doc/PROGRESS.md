@@ -627,3 +627,92 @@ pen value that comes from `decodePixels()`, which composes it from at most `plan
 positions; `Palette.colorAt` already uses `getOrElse` so an out-of-range pen degrades to black
 rather than throwing. `decodePixels()` itself is unchanged, so its existing bounds behaviour is
 untouched. No new unbounded array indexing, no new parsing of attacker-controlled lengths.
+
+## Group D done: `@limage` is a *line* image, and centring is image-only (Bug 7, 2026-08-27)
+
+Per `doc/PLAN` "there are issues at cozy floyd" (Group D, bug 7: st-guide's "Main" banner sits on
+top of the node's table of contents). The plan expected D1 to find no better centring signal than
+`x == 0` and D2 to fall back on a width heuristic ("centred only if the image fits the text
+column"). D1 found something better than either, so D2 landed a spec-backed fix instead of a
+heuristic — see `doc/format-notes.md` § "`x == 0` is the only centring signal…" for the full
+write-up and evidence.
+
+**D1 — what the two spec sources actually say.**
+
+1. `x == 0` really is the only centring signal there is; neither `hypfmt.ui` ("X == 0 for centered
+   images") nor `hyp.h` ("(0 == centered)") offers a second, more explicit flag. But both scope it
+   to **images**: `hyp.h`'s `x_offset` comment gives `@line`/`@box`/`@rbox` a valid `x` of 1-255 and
+   `@image`/`@limage` a valid `x` of 0-255. So `centered` was never meaningful on the `Graphic`
+   interface — it is an `Image` property.
+2. The graphic **`width` byte separates the format's two image commands**: `hypfmt.ui` annotates it
+   "(width == 1 for @limage)", `hyp.h` says "value used internally: 0, or 1 for limage". The old
+   `Graphic.Image` doc comment claimed `width`/`height` were "present on the wire but ignored by the
+   format for images (real files carry 0 for both)" — wrong, and the reason bug 7 existed. The HCP
+   command reference for `@limage`: images placed this way "will be treated by ST-Guide as lines
+   (limage == line image), meaning that text cannot be placed to either the left or the right of
+   them and it isn't necessary to insert blank lines below the image, as ST-Guide will automatically
+   move the following text down".
+3. `st-guide_orig_en.hyp` uses both commands, and only the distinction explains its pages: 1
+   placement with `width == 1` (the 528×153 banner on "Main", `x = 0`, centred) and 28 with
+   `width == 0` (the 32×24 toolbar icons). "Symbol bar" is the control case — its icons sit at rows
+   11/13/15 and its own text has blank lines at exactly those rows, i.e. an overlay, as expected.
+   "Main"'s 14 lines are a dense two-column TOC with no blank rows at all, so reading its banner as
+   an overlay drops a 66-cell-wide, ~9-row-tall image straight onto the TOC. That *is* bug 7.
+
+**D2 — model (`Graphic.kt`).** `centered` moved off the `Graphic` interface onto `Graphic.Image`,
+and `Graphic.Image.isLineImage` (`width == 1`) added, both documented with their spec citations.
+The old comment's "confirmed empirically" overclaim is gone: the four image fixtures it named
+contain no contradicting case, so they never confirmed the interface-wide reading, they just failed
+to falsify it. New corpus test `NodeTest.stGuideDistinguishesItsLimageBannerFromItsPlainImageIcons`
+pins the 1-vs-28 split; `limageHypPlacesLineHeightImages`/`imageHypPlacesThreeCenteredAndOffsetImages`
+now assert `isLineImage` too.
+
+**D2 — renderer (`HtmlSpans.renderGrid`).** A line image is now emitted as a **block between two
+containers**, splitting the node's lines at its row, so the browser pushes the following text down
+exactly as ST-Guide does; a plain `@image` and every vector graphic stay absolute overlays as
+before. Splitting into per-segment containers is also what keeps the overlays right: each is
+positioned `top:<row − segment start>em` inside its own segment, so a line image that displaces the
+rows below it displaces their overlays too — with no font-metric arithmetic anywhere, which is why
+this needs no px-per-cell constant. Centred now means centred **on the node's own text column**
+(`left:calc(<N>ch / 2)`), not `left:50%` of a viewport whose width the `.hyp` format knows nothing
+about. Tests: `renderGridCentersAGraphicWhenXIsZero` kept (retargeted to an image, which is what
+centring applies to), plus `renderGridPlacesAVectorGraphicAtItsRawXEvenWhenThatXIsZero`,
+`renderGridFlowsALineImageBetweenTheRowsItSplitsInsteadOfOverlayingThem` and
+`renderGridOffsetsAnOverlayBelowALineImageIntoItsOwnSegment`; the two renderer-level
+`x == 0`-on-a-`Line` tests were corrected to expect `left:0ch`.
+
+**D3 — width cap.** `HtmlSpans.imageSizeStyle(node)` emits
+`style="width:auto;height:auto;max-width:<N>ch"` on every `<img>` in `HtmlRenderer`/`EpubRenderer`,
+where `N` is `HtmlSpans.textColumnWidth(node)` = the node's longest line. `height:auto` is needed
+because the `height` attribute is a presentational hint that would otherwise pin the original pixel
+height while the width shrinks, distorting the image. The cap is omitted entirely when the node has
+no text (`N == 0`), which would otherwise collapse the image to nothing. It is computed from the
+`Node` being rendered, so `--reflow` (which `Commands.kt` applies before renderer dispatch) widens
+it automatically, with no reflow branch.
+
+**Verification** (real corpus, not just unit tests): `./gradlew run -Pargs="dump
+src/commonTest/resources/corpus/st-guide_orig_en.hyp --format html --out …"`, with and without
+`--reflow`. "Main" now renders as `<div …><p>` (its one leading blank line) `</p></div>` +
+`<div style="width:64ch;text-align:center"><img …></div>` + `<div …><p>` (the 13 TOC lines) — banner
+above the TOC, centred on the 64-cell text column, no overlap, and the 15 vector decorations moved
+from rows 1/5/8/10 to 0/4/7/9 inside the second segment, i.e. still on their own text rows. Exactly
+one `text-align:center` line-image block exists in the whole document, as the corpus predicts. The
+`--reflow` cap tracks the joined lines: "Symbol bar" 71ch → 440ch, "Load file" 71ch → 829ch,
+"Info Dialogue" 72ch → 696ch, etc. ("Main" stays 64ch in both, correctly — a TOC table has no
+reflowable paragraphs.)
+
+`./gradlew clean build` green in both projects across all targets (`jvm`, `macosArm64`, `wasmWasi`),
+including the real-binary `macosArm64SmokeTest`/`wasmWasiSmokeTest`.
+
+Security review: no findings. The one new output-sink value is a CSS length interpolated into a
+`style` attribute, and it is an `Int` character count (`textColumnWidth`, a `sumOf {
+it.text.length }` over spans) plus `graphic.x`/`graphic.y` — never document text, so no new
+injection surface in the HTML/XHTML sink. Existing escaping (`HtmlSpans.escapeHtml`) is unchanged
+and still on every text path. The renderer restructure adds bounded index arithmetic only: segment
+bounds come from `y.coerceIn(0, node.lines.size)` and rows are read via `until` over
+`node.lines.indices`, so a hostile `y` cannot index out of range, and a line image at a clamped row
+produces at worst an empty segment. `imageSizeStyle` guards its own `N == 0` case. The review did surface one non-security correctness
+nit, fixed in the same round: `isLastSegment` was derived as `end == node.lines.size`, which is also
+true of the segment *before* a line image clamped to the last row — so an overlay whose `y` is past
+the final row was drawn twice. It is now an explicit parameter, covered by
+`anOverlayClampedPastTheLastRowIsStillDrawnOnlyOnceAlongsideALineImageThere`.

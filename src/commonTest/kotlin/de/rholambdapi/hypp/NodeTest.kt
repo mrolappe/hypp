@@ -30,6 +30,7 @@ class NodeTest {
         // "rtr_logo.img" is entries[1]; every placement references that one image.
         assertTrue(images.all { it.imageIndex == NodeIndex(1) })
         assertTrue(images.all { it.width == 0 && it.height == 0 })
+        assertTrue(images.all { !it.isLineImage })
         assertTrue(images.all { it.ditherMask == null })
     }
 
@@ -40,6 +41,23 @@ class NodeTest {
         val images = main.graphics.map { assertIs<Graphic.Image>(it) }
         assertEquals(listOf(0 to 1, 11 to 2, 49 to 3), images.map { it.x to it.y })
         assertTrue(images.all { it.width == 1 })
+        assertTrue(images.all { it.isLineImage })
+    }
+
+    // The `width` byte is the only thing separating the format's two image commands, and a real
+    // document uses both: st-guide's "Main" banner is an `@limage` (ST-Guide pushes the text below
+    // it down), every icon in it is a plain `@image` overlay drawn on rows the author left blank.
+    @Test
+    fun stGuideDistinguishesItsLimageBannerFromItsPlainImageIcons() {
+        val doc = open(TestCorpus.stGuideOrigEn)
+        val images = doc.nodes.flatMap { it.graphics }.filterIsInstance<Graphic.Image>()
+
+        val (lineImages, overlays) = images.partition { it.isLineImage }
+        assertEquals(1, lineImages.size)
+        assertEquals(0 to 1, lineImages.single().x to lineImages.single().y)
+        assertTrue(lineImages.single().centered)
+        assertEquals(28, overlays.size)
+        assertTrue(overlays.none { it.centered })
     }
 
     @Test

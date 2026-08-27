@@ -19,11 +19,12 @@ class HtmlRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
             append("<h2 id=\"").append(node.index.value).append("\">")
             append(HtmlSpans.escapeHtml(node.name)).appendLine("</h2>")
 
+            val sizing = HtmlSpans.imageSizeStyle(node)
             appendLine(
                 HtmlSpans.renderGrid(node) { graphic ->
                     val image = document.image(graphic.imageIndex) ?: return@renderGrid null
                     val dataUri = "data:image/png;base64," + Base64.encode(imageEncoder.encode(image))
-                    "<img width=\"${image.width}\" height=\"${image.height}\" src=\"$dataUri\">"
+                    "<img width=\"${image.width}\" height=\"${image.height}\"$sizing src=\"$dataUri\">"
                 },
             )
         }

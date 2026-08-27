@@ -24,7 +24,12 @@ class Hyp2TextTest {
         assertTrue(main.startsWith("== node Main [Documentation for HCP]\n"), main.take(80))
         // One centred image placeholder and nine decorative box-drawing lines (phase 5), then
         // the three cross-references, then the text region.
-        assertEquals(10, main.lines().count { it.startsWith("  <image") || it.startsWith("  <line") })
+        assertEquals(
+            10,
+            main.lines().count {
+                it.startsWith("  <image") || it.startsWith("  <limage") || it.startsWith("  <line")
+            },
+        )
         assertEquals(
             listOf(
                 "  <xref -> 123:  ST-Guide Documentation>",

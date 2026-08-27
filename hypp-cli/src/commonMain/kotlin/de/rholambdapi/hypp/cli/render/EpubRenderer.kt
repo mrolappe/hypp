@@ -66,7 +66,8 @@ class EpubRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
             // fragment that nothing in this file would define anyway.
             HtmlSpans.renderGrid(node, linkHref = { target -> "node-${target.value}.xhtml" }) { graphic ->
                 val image = document.image(graphic.imageIndex) ?: return@renderGrid null
-                "<img width=\"${image.width}\" height=\"${image.height}\" src=\"${imageHref(image)}\"/>"
+                "<img width=\"${image.width}\" height=\"${image.height}\"${HtmlSpans.imageSizeStyle(node)} " +
+                    "src=\"${imageHref(image)}\"/>"
             },
         )
 
