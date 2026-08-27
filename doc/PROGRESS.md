@@ -572,9 +572,9 @@ the `<a>` wrapper (render plain text) or point at an anchor with the external fi
 `ToExternalRef`, since no `.REF` file is loaded to know a real destination path. Not investigated
 further or fixed — found while regenerating output for a visual review, not the round's task.
 
-**Fixed** in the Group E round below (bug 9), together with the popup bug that shares its root
-cause. `ebook-convert` on the regenerated EPUB now reports zero "referenced file not found"
-warnings, down from 22.
+**Fixed** in commit `160a87b` (the Group E round below, bug 9), together with the popup bug that
+shares its root cause. `ebook-convert` on the regenerated EPUB now reports zero "referenced file
+not found" warnings, down from 22.
 
 ## Round: image bitplane pixel values are Atari ST hardware pens (plan Group C, Bug 6)
 
@@ -721,7 +721,7 @@ true of the segment *before* a line image clamped to the last row — so an over
 the final row was drawn twice. It is now an explicit parameter, covered by
 `anOverlayClampedPastTheLastRowIsStillDrawnOnlyOnceAlongsideALineImageThere`.
 
-## Group E done: popups render as popups, external refs as stubs (bugs 8 + 9, 2026-08-27)
+## Group E done: popups render as popups, external refs as stubs (bugs 8 + 9, 2026-08-27, `160a87b`)
 
 Per `doc/PLAN` "there are issues at cozy floyd" (Group E). Both bugs, combined per the plan because
 they share one root cause.
