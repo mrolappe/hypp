@@ -1,7 +1,11 @@
 package de.rholambdapi.hypp.cli.render
 
 import de.rholambdapi.hypp.Graphic
+import de.rholambdapi.hypp.Header
+import de.rholambdapi.hypp.HypCharset
 import de.rholambdapi.hypp.HypColor
+import de.rholambdapi.hypp.HypDocument
+import de.rholambdapi.hypp.IndexEntry
 import de.rholambdapi.hypp.Line
 import de.rholambdapi.hypp.Link
 import de.rholambdapi.hypp.LinkKind
@@ -70,10 +74,19 @@ class HtmlSpansTest {
     }
 
     @Test
-    fun linkSpanWithCustomHref() {
+    fun linkSpanWithCustomMarkup() {
         val link = Link(kind = LinkKind.LINK, target = NodeIndex(5), lineNumber = null, label = "go")
-        val html = HtmlSpans.renderSpan(Span("go", TextStyle.Normal, link)) { target -> "node-${target.value}.xhtml" }
+        val html = HtmlSpans.renderSpan(Span("go", TextStyle.Normal, link)) { text, target ->
+            "<a href=\"node-${target.value}.xhtml\">$text</a>"
+        }
         assertEquals("<a href=\"node-5.xhtml\">go</a>", html)
+    }
+
+    @Test
+    fun linkTextIsEscapedBeforeReachingTheRenderersOwnMarkup() {
+        val link = Link(kind = LinkKind.LINK, target = NodeIndex(5), lineNumber = null, label = "go")
+        val html = HtmlSpans.renderSpan(Span("<b>&", TextStyle.Normal, link)) { text, _ -> text }
+        assertEquals("&lt;b&gt;&amp;", html)
     }
 
     @Test
@@ -266,6 +279,133 @@ class HtmlSpansTest {
 
         assertTrue(html.contains("<div style=\"position:absolute;z-index:1;top:4em;left:2ch\">"), html)
         assertEquals(1, Regex("position:absolute").findAll(html).count())
+    }
+
+    // --- Popups (bug 8) and external refs (bug 9): targets with no page of their own ---
+
+    private fun entry(type: Int, name: String) =
+        IndexEntry(len = 0, type = type, seek = 0, compDiff = 0, next = 0, prev = 0, toc = 0, name = name, compressedLength = 0)
+
+    /** [entries] and [nodes] are index-aligned, as they are in a real parsed document. */
+    private fun document(entries: List<IndexEntry>, nodes: List<Node> = emptyList()) = HypDocument(
+        header = Header(itableSize = 0, itableCount = 0, compilerVersion = 0, compilerOs = 0),
+        extendedHeaders = emptyList(),
+        entries = entries,
+        charset = HypCharset.Default,
+        nodes = nodes,
+        images = emptyList(),
+        diagnostics = emptyList(),
+    )
+
+    private fun popupNode(index: Int, name: String, text: String) = Node(
+        index = NodeIndex(index),
+        name = name,
+        kind = NodeKind.POPUP,
+        windowTitle = null,
+        graphics = emptyList(),
+        crossReferences = emptyList(),
+        dataBlocks = emptyList(),
+        objectTable = emptyList(),
+        lines = listOf(textLine(text)),
+    )
+
+    @Test
+    fun anOrdinaryNodeTargetHasNoStubContentAndIsNotAStubTarget() {
+        val doc = document(listOf(entry(IndexEntry.TYPE_INTERNAL, "Home")), listOf(node(listOf(textLine("hi")))))
+
+        assertNull(HtmlSpans.stubContent(doc, NodeIndex(0)))
+        assertTrue(!HtmlSpans.isStubTarget(doc, NodeIndex(0)))
+    }
+
+    @Test
+    fun anOutOfRangeTargetHasNoStubContent() {
+        val doc = document(emptyList())
+
+        assertNull(HtmlSpans.stubContent(doc, NodeIndex(7)))
+        assertTrue(!HtmlSpans.isStubTarget(doc, NodeIndex(7)))
+    }
+
+    @Test
+    fun aPopupTargetsStubContentIsThePopupNodesOwnGrid() {
+        val doc = document(
+            listOf(entry(IndexEntry.TYPE_INTERNAL, "Home"), entry(IndexEntry.TYPE_POPUP, "Pop")),
+            listOf(node(listOf(textLine("hi"))), popupNode(1, "Pop", "a & b")),
+        )
+
+        assertTrue(HtmlSpans.isStubTarget(doc, NodeIndex(1)))
+        assertEquals(
+            "<div style=\"position:relative;line-height:1\"><p style=\"margin:0\">a &amp; b</p></div>",
+            HtmlSpans.stubContent(doc, NodeIndex(1)),
+        )
+    }
+
+    @Test
+    fun popupStubContentIsEscapedExactlyOnce() {
+        // The grid comes back from renderGrid already escaped; a renderer that re-escaped it before
+        // dropping it into a <dialog>/<details> would show a literal `&amp;` to the reader.
+        val doc = document(
+            listOf(entry(IndexEntry.TYPE_POPUP, "Pop")),
+            listOf(popupNode(0, "Pop", "<b> & </b>")),
+        )
+
+        val stub = assertNotNull(HtmlSpans.stubContent(doc, NodeIndex(0)))
+        assertTrue(stub.contains("&lt;b&gt; &amp; &lt;/b&gt;"), stub)
+        assertTrue(!stub.contains("&amp;lt;"), stub)
+        assertTrue(!stub.contains("&amp;amp;"), stub)
+    }
+
+    @Test
+    fun anExternalRefsStubContentNamesTheFileAndNodeItPointsAt() {
+        val doc = document(listOf(entry(IndexEntry.TYPE_EXTERNAL_REF, "reflink.hyp/Main")))
+
+        assertTrue(HtmlSpans.isStubTarget(doc, NodeIndex(0)))
+        assertEquals(
+            "External reference — not included in this document: reflink.hyp/Main",
+            HtmlSpans.stubContent(doc, NodeIndex(0)),
+        )
+    }
+
+    @Test
+    fun anExternalRefWithoutAFileNameNamesOnlyTheNode() {
+        val doc = document(listOf(entry(IndexEntry.TYPE_EXTERNAL_REF, "STool")))
+
+        assertEquals(
+            "External reference — not included in this document: STool",
+            HtmlSpans.stubContent(doc, NodeIndex(0)),
+        )
+    }
+
+    @Test
+    fun anExternalRefsNameIsEscapedBeforeItReachesTheOutput() {
+        // fileName/nodeName are raw `.hyp` bytes — an attacker-authored file naming an entry
+        // `<script>/x` must not be able to inject markup into any HTML-shaped renderer's output.
+        val doc = document(listOf(entry(IndexEntry.TYPE_EXTERNAL_REF, "<script>alert(1)</script>&/x\"y")))
+
+        val stub = assertNotNull(HtmlSpans.stubContent(doc, NodeIndex(0)))
+        assertTrue(!stub.contains("<script>"), stub)
+        assertTrue(stub.contains("&lt;script&gt;alert(1)&lt;/script&gt;&amp;/x\"y"), stub)
+    }
+
+    @Test
+    fun aSystemActionTargetIsDescribedRatherThanLinkedTo() {
+        // It has no page either — the dead `node-<n>.xhtml` href it used to produce is what made
+        // Calibre report a missing referenced file, exactly as an external ref did.
+        val doc = document(listOf(entry(IndexEntry.TYPE_SYSTEM, "stool.Tos")))
+
+        assertTrue(HtmlSpans.isStubTarget(doc, NodeIndex(0)))
+        assertEquals(
+            "Viewer action — not available in this document: stool.Tos",
+            HtmlSpans.stubContent(doc, NodeIndex(0)),
+        )
+    }
+
+    @Test
+    fun aSystemActionsNameIsEscapedBeforeItReachesTheOutput() {
+        val doc = document(listOf(entry(IndexEntry.TYPE_QUIT, "<img src=x onerror=alert(1)>&")))
+
+        val stub = assertNotNull(HtmlSpans.stubContent(doc, NodeIndex(0)))
+        assertTrue(!stub.contains("<img"), stub)
+        assertTrue(stub.contains("&lt;img src=x onerror=alert(1)&gt;&amp;"), stub)
     }
 
     @Test

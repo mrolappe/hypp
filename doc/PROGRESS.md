@@ -572,6 +572,10 @@ the `<a>` wrapper (render plain text) or point at an anchor with the external fi
 `ToExternalRef`, since no `.REF` file is loaded to know a real destination path. Not investigated
 further or fixed — found while regenerating output for a visual review, not the round's task.
 
+**Fixed** in the Group E round below (bug 9), together with the popup bug that shares its root
+cause. `ebook-convert` on the regenerated EPUB now reports zero "referenced file not found"
+warnings, down from 22.
+
 ## Round: image bitplane pixel values are Atari ST hardware pens (plan Group C, Bug 6)
 
 **Symptom (reported against `hypview`'s rendering of `st-guide_orig_en.hyp`, "Main" node):** the
@@ -716,3 +720,126 @@ nit, fixed in the same round: `isLastSegment` was derived as `end == node.lines.
 true of the segment *before* a line image clamped to the last row — so an overlay whose `y` is past
 the final row was drawn twice. It is now an explicit parameter, covered by
 `anOverlayClampedPastTheLastRowIsStillDrawnOnlyOnceAlongsideALineImageThere`.
+
+## Group E done: popups render as popups, external refs as stubs (bugs 8 + 9, 2026-08-27)
+
+Per `doc/PLAN` "there are issues at cozy floyd" (Group E). Both bugs, combined per the plan because
+they share one root cause.
+
+**Symptoms.** (8) A `NodeKind.POPUP` node — which ST-Guide shows in a transient window over the
+current page — was emitted as an ordinary full page section (`<h2>` in HTML, its own
+`node-<N>.xhtml` in EPUB). (9) A link to a `TYPE_EXTERNAL_REF` target (22 of them in
+`st-guide_orig_en.hyp`, e.g. `hcp.hyp/Main`, `reflink.hyp/Main`) rendered as a dead `#<N>` fragment
+/ dead `node-<N>.xhtml` href, because nothing resolves a reference into another `.hyp` file.
+
+**Root cause (shared).** `IndexEntry.TYPE_POPUP`, `Node.kind` and `ResolvedTarget.ToExternalRef`
+have existed in the model since phase 13, but neither HTML-shaped renderer ever called
+`HypDocument.resolve()`. `HtmlSpans.renderSpan`'s `linkHref: (NodeIndex) -> String` callback only
+ever saw a raw index, so it could not branch on what that index actually resolves to.
+
+**E1 — the shared walker learns about targets.** `linkHref` is replaced by
+
+```kotlin
+internal typealias LinkMarkup = (text: String, target: NodeIndex) -> String
+internal val fragmentLink: LinkMarkup = { text, target -> "<a href=\"#${target.value}\">$text</a>" }
+
+fun renderSpan(span: Span, linkMarkup: LinkMarkup = fragmentLink): String
+fun renderGrid(node: Node, linkMarkup: LinkMarkup = fragmentLink, imageTag: (Graphic.Image) -> String?): String
+```
+
+i.e. the renderer now owns the *whole anchor*, not just its href — necessary because a popup or an
+external ref has no page to link to at all, and the substitute markup differs per output format.
+`text` arrives already escaped, so a renderer can never forget to escape it. The `HypDocument`
+itself stays out of the signature: the renderers already have it and close over it, which keeps the
+default (`renderGrid(node) { … }`, used by ~15 existing tests) working unchanged.
+
+**E2 — `HtmlSpans.stubContent`/`isStubTarget`.** `stubContent(document, target, linkMarkup,
+imageTag)` returns the content to inline in place of a link, or null for an ordinary node: a popup
+node's own grid (via `renderGrid`, so it is escaped exactly once and never re-escaped by the
+caller), or a description of an external ref / viewer action, put through `escapeHtml()` —
+`ExternalRef.fileName`/`nodeName` and `IndexEntry.name` are decoded straight from untrusted `.hyp`
+bytes. `isStubTarget` answers the same question *without rendering*, which is the recursion
+firebreak: a renderer's `LinkMarkup` asking "is this a stub?" is in general the same `LinkMarkup`
+`stubContent` would render with, and two popups linking to each other would otherwise recurse
+forever.
+
+**E3 — `HtmlRenderer`.** Popup nodes are skipped in the page loop and emitted once each as
+`<dialog id="popup-N">…<form method="dialog"><button>Close</button></form></dialog>`, together with
+one dialog per external-ref/viewer-action entry, driven off `document.entries.indices`. Links to
+them become `<a href="#" onclick="document.getElementById('popup-N').showModal();return false;">`.
+`N` is an `Int` node index, never document text, so it interpolates into the handler safely.
+
+**E4 — `EpubRenderer`.** JS is unreliable across e-readers, so EPUB uses CSS-only disclosure:
+`<details><summary>{link text}</summary>{stub}</details>` inlined at each link site. Popup nodes no
+longer get a `node-<N>.xhtml` file, nav entry, manifest item or spine entry (new
+`HypDocument.pages` = `nodes.filter { it.kind == NodeKind.TEXT }`); their images are still
+manifested, since a popup's content is now inlined into the pages that link to it. Content links
+*inside* a stub stay plain cross-file links rather than nesting another disclosure — the same
+recursion firebreak as above.
+
+**Scope note — one extra target class.** `ResolvedTarget.ToSystemAction` (one `SYSTEM` entry in the
+fixture, `#79`/`node-79.xhtml`) had the exact same defect and was the sole surviving
+`ebook-convert` warning after the bug-9 fix, so it gets the same stub treatment ("Viewer action —
+not available in this document: …", escaped). Same mechanism, four lines, and it is what takes the
+Calibre check to zero.
+
+**E5 — TDD.** Red first: the new assertions failed against the old API/behaviour before the fix.
+New cases in `HtmlSpansTest` (stub content for popup/external-ref/system/ordinary/out-of-range
+targets, popup content escaped *exactly once* — no `&amp;amp;`, link text escaped before it reaches
+the renderer's markup), `HtmlRendererTest` (dialog emitted, popup *not* also a `<h2>` section,
+well-formed `onclick`, ordinary links still plain fragments) and `EpubRendererTest` (no page
+file/nav/spine entry for a popup, `<details>` inlined, no `node-<N>.xhtml` href for an external
+ref). Both renderers carry a deliberate XSS-shaped case: an entry named
+`<script>alert(1)</script>&evil/x` must appear escaped and must not produce a `<script>` tag.
+
+**Verification** (real corpus, not just unit tests): `./gradlew run -Pargs="dump
+src/commonTest/resources/corpus/st-guide_orig_en.hyp --format html|epub --out …"`.
+
+- HTML: page sections 63 → 59 (the 4 popup nodes are no longer pages), 27 `<dialog>` elements
+  (4 popups + 22 external refs + 1 viewer action), every `onclick` target has a matching dialog,
+  and **0 dead `#<N>` fragments** — down from 21. All 22 external refs render as stub text.
+- EPUB: 49 `<details>` disclosures, no `node-<N>.xhtml` href without a file behind it, no `<script>`
+  anywhere, and `content.opf`/`nav.xhtml` reference no missing file.
+- Calibre `/opt/homebrew/bin/ebook-convert st.epub conv.epub`: **zero** "referenced file not found"
+  warnings, down from 22 (see the closed-out entry above).
+
+`./gradlew clean build` green across all `hypp-cli` targets (`jvm`, `macosArm64`, `wasmWasi`),
+including the real-binary `macosArm64SmokeTest`/`wasmWasiSmokeTest` and the strict-XML
+`EpubRendererWellFormednessTest` over the whole fixture.
+
+**Known cosmetic caveat.** A `<details>` block lands inside the grid's `<p style="margin:0">`, which
+is invalid per HTML's content model (`<p>` takes phrasing content only) though perfectly well-formed
+XHTML — Calibre and the strict `DocumentBuilder` both accept it. Splitting the paragraph at each
+disclosure, the way line images already split it, is the fix if a stricter validator (epubcheck)
+ever gets added to the build; it was not worth the restructure for this round.
+
+Markdown/AsciiDoc/Org still render popups as plain sections and external refs as dead fragments —
+that is Group F, deliberately a separate round. ANSI drops link information entirely and is deferred
+behind its own prerequisite refactor.
+
+**Security review** (run over this round's diff only). No HIGH or MEDIUM findings.
+
+The round's genuinely new output sink is the stub text, and the review confirmed `escapeHtml()`
+covers it completely: every path into `<dialog>`/`<details>` content is either
+`escapeHtml(...)` applied at the point of construction (external ref, viewer action) or
+`renderGrid` output, which routes every span through `renderSpan` → `escapeHtml` already. The
+XSS-shaped regression tests (`anExternalRefsNameIsEscapedBeforeItReachesTheOutput`,
+`aSystemActionsNameIsEscapedBeforeItReachesTheOutput`, plus the per-renderer
+`anExternalRefsNameIsEscapedInsideItsDialog`/`...InsideItsDisclosure`) are the guard, not manual
+reading. `escapeHtml` deliberately does not escape `"`/`'`, which holds only because **no
+document-derived text reaches an attribute value anywhere in this diff** — the sole interpolations
+into `id="popup-N"` and the `onclick` handler are `NodeIndex.value`/`entries.indices`, i.e. `Int`.
+That is the invariant to preserve if a future round ever wants a document string in an attribute
+(a `title=`, say); it would need attribute-level escaping first. The `<a>` text handed to a
+renderer's `LinkMarkup` is escaped by `renderSpan` before the callback sees it, so a renderer
+cannot forget.
+
+The review did surface one non-XSS robustness regression, fixed in the same round:
+`HypDocument.resolve()` used `node(target)!!`/`image(target)!!`, which throws when a malformed file
+carries an internal/popup/image entry whose data failed to decompress (`Diagnostic.
+DecompressionFailed` — the entry stays in `entries` with no `Node`/`ImageNode` behind it). That NPE
+was latent while only `inspect` called `resolve()`; this round put it on the html/epub `dump` path
+for *every* link, so a corrupt input would have crashed the renderer instead of rendering. Fixed at
+the root — both accessors now fall through to `ResolvedTarget.Missing`, one guard in the shared
+dispatch rather than one at each call site — with `anEntryWhoseObjectFailedToParseIsMissingRather
+ThanACrash` in `ResolvedTargetTest`. `./gradlew clean build` green in both projects.

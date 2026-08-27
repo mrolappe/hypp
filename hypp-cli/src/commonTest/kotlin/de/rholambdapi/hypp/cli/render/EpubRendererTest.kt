@@ -7,6 +7,7 @@ import de.rholambdapi.hypp.HypCharset
 import de.rholambdapi.hypp.HypColor
 import de.rholambdapi.hypp.HypDocument
 import de.rholambdapi.hypp.ImageNode
+import de.rholambdapi.hypp.IndexEntry
 import de.rholambdapi.hypp.Line
 import de.rholambdapi.hypp.Link
 import de.rholambdapi.hypp.LinkKind
@@ -43,14 +44,30 @@ class EpubRendererTest {
         lines = lines,
     )
 
+    private fun popupNode(index: Int, name: String, text: String) = Node(
+        index = NodeIndex(index),
+        name = name,
+        kind = NodeKind.POPUP,
+        windowTitle = null,
+        graphics = emptyList(),
+        crossReferences = emptyList(),
+        dataBlocks = emptyList(),
+        objectTable = emptyList(),
+        lines = listOf(Line(listOf(Span(text, TextStyle.Normal)))),
+    )
+
+    private fun entry(type: Int, name: String) =
+        IndexEntry(len = 0, type = type, seek = 0, compDiff = 0, next = 0, prev = 0, toc = 0, name = name, compressedLength = 0)
+
     private fun document(
         nodes: List<Node>,
         images: List<ImageNode> = emptyList(),
         extendedHeaders: List<ExtendedHeader> = emptyList(),
+        entries: List<IndexEntry> = emptyList(),
     ) = HypDocument(
         header = Header(itableSize = 0, itableCount = 0, compilerVersion = 0, compilerOs = 0),
         extendedHeaders = extendedHeaders,
-        entries = emptyList(),
+        entries = entries,
         charset = HypCharset.Default,
         nodes = nodes,
         images = images,
@@ -331,6 +348,99 @@ class EpubRendererTest {
         val opf = EpubRenderer().render(doc).single { it.path == "OEBPS/content.opf" }.bytes.decodeToString()
 
         assertFalse(opf.contains("dc:creator"), opf)
+    }
+
+    // --- Popups (bug 8) and external refs (bug 9) ---
+
+    private fun popupDocument() = document(
+        nodes = listOf(
+            node(0, "Home", listOf(Line(listOf(Span("see", TextStyle.Normal, Link(LinkKind.LINK, NodeIndex(1), null, "l")))))),
+            popupNode(1, "Pop", "the popup body"),
+        ),
+        entries = listOf(entry(IndexEntry.TYPE_INTERNAL, "Home"), entry(IndexEntry.TYPE_POPUP, "Pop")),
+    )
+
+    @Test
+    fun aPopupNodeGetsNoPageFileNavEntryOrSpineEntry() {
+        val files = EpubRenderer().render(popupDocument())
+
+        assertFalse(files.any { it.path == "OEBPS/node-1.xhtml" }, files.map { it.path }.toString())
+
+        val nav = files.single { it.path == "OEBPS/nav.xhtml" }.bytes.decodeToString()
+        assertFalse(nav.contains("node-1.xhtml"), nav)
+
+        val opf = files.single { it.path == "OEBPS/content.opf" }.bytes.decodeToString()
+        assertFalse(opf.contains("node-1"), opf)
+    }
+
+    @Test
+    fun aLinkToAPopupInlinesItsContentAsADisclosure() {
+        val xhtml = EpubRenderer().render(popupDocument())
+            .single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
+
+        assertTrue(xhtml.contains("<details><summary>see</summary>"), xhtml)
+        assertTrue(xhtml.contains("the popup body"), xhtml)
+        assertFalse(xhtml.contains("node-1.xhtml"), xhtml)
+    }
+
+    @Test
+    fun popupContentInsideADisclosureIsEscapedExactlyOnce() {
+        val doc = document(
+            nodes = listOf(
+                node(0, "Home", listOf(Line(listOf(Span("see", TextStyle.Normal, Link(LinkKind.LINK, NodeIndex(1), null, "l")))))),
+                popupNode(1, "Pop", "a & b"),
+            ),
+            entries = listOf(entry(IndexEntry.TYPE_INTERNAL, "Home"), entry(IndexEntry.TYPE_POPUP, "Pop")),
+        )
+
+        val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
+
+        assertTrue(xhtml.contains("a &amp; b"), xhtml)
+        assertFalse(xhtml.contains("&amp;amp;"), xhtml)
+    }
+
+    @Test
+    fun anExternalRefLinkInlinesAStubInsteadOfPointingAtAMissingFile() {
+        val doc = document(
+            nodes = listOf(
+                node(
+                    0,
+                    "Home",
+                    listOf(Line(listOf(Span("RefLink", TextStyle.Normal, Link(LinkKind.LINK, NodeIndex(1), null, "l"))))),
+                ),
+            ),
+            entries = listOf(entry(IndexEntry.TYPE_INTERNAL, "Home"), entry(IndexEntry.TYPE_EXTERNAL_REF, "reflink.hyp/Main")),
+        )
+
+        val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
+
+        assertTrue(
+            xhtml.contains(
+                "<details><summary>RefLink</summary>External reference — not included in this document: " +
+                    "reflink.hyp/Main</details>",
+            ),
+            xhtml,
+        )
+        // The dead href that made Calibre report a missing referenced file.
+        assertFalse(xhtml.contains("node-1.xhtml"), xhtml)
+    }
+
+    @Test
+    fun anExternalRefsNameIsEscapedInsideItsDisclosure() {
+        val doc = document(
+            nodes = listOf(
+                node(0, "Home", listOf(Line(listOf(Span("bad", TextStyle.Normal, Link(LinkKind.LINK, NodeIndex(1), null, "l")))))),
+            ),
+            entries = listOf(
+                entry(IndexEntry.TYPE_INTERNAL, "Home"),
+                entry(IndexEntry.TYPE_EXTERNAL_REF, "<script>alert(1)</script>&evil/x"),
+            ),
+        )
+
+        val xhtml = EpubRenderer().render(doc).single { it.path == "OEBPS/node-0.xhtml" }.bytes.decodeToString()
+
+        assertFalse(xhtml.contains("<script>"), xhtml)
+        assertTrue(xhtml.contains("&lt;script&gt;alert(1)&lt;/script&gt;&amp;evil/x"), xhtml)
     }
 
     @Test

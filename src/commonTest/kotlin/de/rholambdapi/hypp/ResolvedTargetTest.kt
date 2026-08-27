@@ -70,4 +70,25 @@ class ResolvedTargetTest {
     fun outOfRangeIndexIsMissing() {
         assertEquals(ResolvedTarget.Missing, document.resolve(NodeIndex(9999)))
     }
+
+    @Test
+    fun anEntryWhoseObjectFailedToParseIsMissingRatherThanACrash() {
+        // A malformed file's internal/popup/image entry can fail to decompress (recorded as
+        // Diagnostic.DecompressionFailed), leaving the entry in the index table with no Node or
+        // ImageNode behind it. resolve() is the one dispatch every link-following caller goes
+        // through, so it absorbs that here rather than throwing at each of them.
+        val undecodable = HypDocument(
+            header = Header(itableSize = 0, itableCount = types.size, compilerVersion = 3, compilerOs = 2),
+            extendedHeaders = emptyList(),
+            entries = types.mapIndexed { i, t -> entry(i, t) },
+            charset = HypCharset.Default,
+            nodes = emptyList(),
+            images = emptyList(),
+            diagnostics = types.indices.map { Diagnostic.DecompressionFailed(NodeIndex(it)) },
+        )
+
+        for (type in listOf(IndexEntry.TYPE_INTERNAL, IndexEntry.TYPE_POPUP, IndexEntry.TYPE_IMAGE)) {
+            assertEquals(ResolvedTarget.Missing, undecodable.resolve(NodeIndex(type)), "type $type")
+        }
+    }
 }

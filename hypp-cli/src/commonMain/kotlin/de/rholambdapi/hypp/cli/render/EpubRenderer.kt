@@ -4,6 +4,7 @@ import de.rholambdapi.hypp.Graphic
 import de.rholambdapi.hypp.HypDocument
 import de.rholambdapi.hypp.ImageNode
 import de.rholambdapi.hypp.Node
+import de.rholambdapi.hypp.NodeKind
 
 private const val MIMETYPE = "mimetype"
 private const val CONTAINER_XML = "META-INF/container.xml"
@@ -13,6 +14,19 @@ private const val NAV_XHTML = "OEBPS/nav.xhtml"
 private fun xhtmlPath(node: Node) = "OEBPS/node-${node.index.value}.xhtml"
 private fun imageId(image: ImageNode) = "img-${image.index.value}"
 private fun imageHref(image: ImageNode) = "images/${imageId(image)}.png"
+
+/**
+ * Each node is its own XHTML document here, unlike [HtmlRenderer]'s single page, so an internal
+ * link must cross files rather than jump to a same-page fragment nothing in this file defines.
+ */
+private val crossFileLink: LinkMarkup = { text, target -> "<a href=\"node-${target.value}.xhtml\">$text</a>" }
+
+/**
+ * The nodes that become their own reading-order page. A popup node does not: ST-Guide shows it in a
+ * transient window over the current page, so it is inlined at each link site instead (see
+ * [HtmlSpans.stubContent]) and must stay out of the spine, the nav and the manifest.
+ */
+private val HypDocument.pages: List<Node> get() = nodes.filter { it.kind == NodeKind.TEXT }
 
 /**
  * Produces a minimal EPUB3 file set. Images referenced by any node's [Graphic.Image] are encoded
@@ -31,13 +45,13 @@ class EpubRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
         val files = mutableListOf<RenderedFile>()
         files += RenderedFile(MIMETYPE, "application/epub+zip".encodeToByteArray())
         files += RenderedFile(CONTAINER_XML, containerXml().encodeToByteArray())
-        for (node in document.nodes) {
+        for (node in document.pages) {
             files += RenderedFile(xhtmlPath(node), nodeXhtml(node, document).encodeToByteArray())
         }
         for (image in images) {
             files += RenderedFile("OEBPS/${imageHref(image)}", imageEncoder.encode(image))
         }
-        files += RenderedFile(NAV_XHTML, navXhtml(document.nodes).encodeToByteArray())
+        files += RenderedFile(NAV_XHTML, navXhtml(document.pages).encodeToByteArray())
         files += RenderedFile(CONTENT_OPF, contentOpf(document, images).encodeToByteArray())
         return files
     }
@@ -60,16 +74,22 @@ class EpubRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
         appendLine(VectorGraphicSvg.sharedDefs())
         appendLine("<h1>$name</h1>")
 
-        appendLine(
-            // Each node is its own XHTML document here, unlike HtmlRenderer's single page, so an
-            // internal link must cross files (node-<target>.xhtml) rather than jump to a same-page
-            // fragment that nothing in this file would define anyway.
-            HtmlSpans.renderGrid(node, linkHref = { target -> "node-${target.value}.xhtml" }) { graphic ->
-                val image = document.image(graphic.imageIndex) ?: return@renderGrid null
-                "<img width=\"${image.width}\" height=\"${image.height}\"${HtmlSpans.imageSizeStyle(node)} " +
-                    "src=\"${imageHref(image)}\"/>"
-            },
-        )
+        fun imageTag(owner: Node, graphic: Graphic.Image): String? {
+            val image = document.image(graphic.imageIndex) ?: return null
+            return "<img width=\"${image.width}\" height=\"${image.height}\"${HtmlSpans.imageSizeStyle(owner)} " +
+                "src=\"${imageHref(image)}\"/>"
+        }
+
+        // A popup or external ref has no page file to link to, and an e-reader can't be relied on to
+        // run script, so the substitute is CSS-only: the content is inlined behind a disclosure
+        // triangle right where the link was. Its own content links stay plain cross-file links —
+        // nesting a disclosure inside a disclosure would recurse on a self-referential popup pair.
+        val linkMarkup: LinkMarkup = { text, target ->
+            val stub = HtmlSpans.stubContent(document, target, crossFileLink, ::imageTag)
+            if (stub == null) crossFileLink(text, target) else "<details><summary>$text</summary>$stub</details>"
+        }
+
+        appendLine(HtmlSpans.renderGrid(node, linkMarkup) { imageTag(node, it) })
 
         appendLine("</body>")
         append("</html>")
@@ -92,7 +112,7 @@ class EpubRenderer(private val imageEncoder: ImageEncoder = StoredPngEncoder) : 
     }
 
     private fun contentOpf(document: HypDocument, images: List<ImageNode>): String = buildString {
-        val nodes = document.nodes
+        val nodes = document.pages
         val title = document.title ?: nodes.firstOrNull()?.name ?: "hypp export"
         appendLine("""<?xml version="1.0" encoding="UTF-8"?>""")
         appendLine("""<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">""")

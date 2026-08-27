@@ -5,7 +5,10 @@ import de.rholambdapi.hypp.Header
 import de.rholambdapi.hypp.HypCharset
 import de.rholambdapi.hypp.HypDocument
 import de.rholambdapi.hypp.ImageNode
+import de.rholambdapi.hypp.IndexEntry
 import de.rholambdapi.hypp.Line
+import de.rholambdapi.hypp.Link
+import de.rholambdapi.hypp.LinkKind
 import de.rholambdapi.hypp.Node
 import de.rholambdapi.hypp.NodeIndex
 import de.rholambdapi.hypp.NodeKind
@@ -161,5 +164,138 @@ class HtmlRendererTest {
             html,
         )
         assertTrue(html.contains("<p style=\"margin:0\">caption</p>"))
+    }
+
+    // --- Popups (bug 8) and external refs (bug 9) ---
+
+    private fun entry(type: Int, name: String) =
+        IndexEntry(len = 0, type = type, seek = 0, compDiff = 0, next = 0, prev = 0, toc = 0, name = name, compressedLength = 0)
+
+    private fun textNode(index: Int, name: String, spans: List<Span>) = Node(
+        index = NodeIndex(index),
+        name = name,
+        kind = NodeKind.TEXT,
+        windowTitle = null,
+        graphics = emptyList(),
+        crossReferences = emptyList(),
+        dataBlocks = emptyList(),
+        objectTable = emptyList(),
+        lines = listOf(Line(spans)),
+    )
+
+    private fun popupNode(index: Int, name: String, text: String) = Node(
+        index = NodeIndex(index),
+        name = name,
+        kind = NodeKind.POPUP,
+        windowTitle = null,
+        graphics = emptyList(),
+        crossReferences = emptyList(),
+        dataBlocks = emptyList(),
+        objectTable = emptyList(),
+        lines = listOf(Line(listOf(Span(text, TextStyle.Normal)))),
+    )
+
+    private fun document(entries: List<IndexEntry>, nodes: List<Node>) = HypDocument(
+        header = Header(itableSize = 0, itableCount = 0, compilerVersion = 0, compilerOs = 0),
+        extendedHeaders = emptyList(),
+        entries = entries,
+        charset = HypCharset.Default,
+        nodes = nodes,
+        images = emptyList(),
+        diagnostics = emptyList(),
+    )
+
+    private fun link(target: Int) = Link(kind = LinkKind.LINK, target = NodeIndex(target), lineNumber = null, label = "l")
+
+    @Test
+    fun aPopupNodeIsADialogRatherThanAPageSection() {
+        val doc = document(
+            listOf(entry(IndexEntry.TYPE_INTERNAL, "Home"), entry(IndexEntry.TYPE_POPUP, "Pop")),
+            listOf(
+                textNode(0, "Home", listOf(Span("see", TextStyle.Normal, link(1)))),
+                popupNode(1, "Pop", "the popup body"),
+            ),
+        )
+
+        val html = HtmlRenderer().render(doc)
+
+        assertTrue(html.contains("<dialog id=\"popup-1\">"), html)
+        assertTrue(html.contains("the popup body"), html)
+        // It must not also appear as an ordinary page section, which is exactly the reported bug.
+        assertTrue(!html.contains("<h2 id=\"1\">"), html)
+    }
+
+    @Test
+    fun aLinkToAPopupOpensItsDialogInsteadOfJumpingToAFragment() {
+        val doc = document(
+            listOf(entry(IndexEntry.TYPE_INTERNAL, "Home"), entry(IndexEntry.TYPE_POPUP, "Pop")),
+            listOf(
+                textNode(0, "Home", listOf(Span("see", TextStyle.Normal, link(1)))),
+                popupNode(1, "Pop", "body"),
+            ),
+        )
+
+        val html = HtmlRenderer().render(doc)
+
+        assertTrue(
+            html.contains(
+                "<a href=\"#\" onclick=\"document.getElementById('popup-1').showModal();return false;\">see</a>",
+            ),
+            html,
+        )
+        assertTrue(!html.contains("href=\"#1\""), html)
+    }
+
+    @Test
+    fun anOrdinaryNodeLinkIsStillAPlainFragment() {
+        val doc = document(
+            listOf(entry(IndexEntry.TYPE_INTERNAL, "Home"), entry(IndexEntry.TYPE_INTERNAL, "Next")),
+            listOf(
+                textNode(0, "Home", listOf(Span("go", TextStyle.Normal, link(1)))),
+                textNode(1, "Next", listOf(Span("here", TextStyle.Normal))),
+            ),
+        )
+
+        val html = HtmlRenderer().render(doc)
+
+        assertTrue(html.contains("<a href=\"#1\">go</a>"), html)
+        assertTrue(html.contains("<h2 id=\"1\">Next</h2>"), html)
+        assertTrue(!html.contains("showModal"), html)
+    }
+
+    @Test
+    fun anExternalRefLinkOpensAStubDialogInsteadOfADeadFragment() {
+        val doc = document(
+            listOf(entry(IndexEntry.TYPE_INTERNAL, "Home"), entry(IndexEntry.TYPE_EXTERNAL_REF, "reflink.hyp/Main")),
+            listOf(textNode(0, "Home", listOf(Span("RefLink", TextStyle.Normal, link(1))))),
+        )
+
+        val html = HtmlRenderer().render(doc)
+
+        assertTrue(
+            html.contains(
+                "<a href=\"#\" onclick=\"document.getElementById('popup-1').showModal();return false;\">RefLink</a>",
+            ),
+            html,
+        )
+        assertTrue(html.contains("<dialog id=\"popup-1\">"), html)
+        assertTrue(html.contains("External reference — not included in this document: reflink.hyp/Main"), html)
+        assertTrue(!html.contains("href=\"#1\""), html)
+    }
+
+    @Test
+    fun anExternalRefsNameIsEscapedInsideItsDialog() {
+        val doc = document(
+            listOf(
+                entry(IndexEntry.TYPE_INTERNAL, "Home"),
+                entry(IndexEntry.TYPE_EXTERNAL_REF, "<script>alert(1)</script>&evil/x"),
+            ),
+            listOf(textNode(0, "Home", listOf(Span("bad", TextStyle.Normal, link(1))))),
+        )
+
+        val html = HtmlRenderer().render(doc)
+
+        assertTrue(!html.contains("<script>"), html)
+        assertTrue(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;&amp;evil/x"), html)
     }
 }

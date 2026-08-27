@@ -1,11 +1,16 @@
 package de.rholambdapi.hypp.cli.render
 
+import de.rholambdapi.hypp.ExternalRef
 import de.rholambdapi.hypp.Graphic
+import de.rholambdapi.hypp.HypDocument
 import de.rholambdapi.hypp.Node
 import de.rholambdapi.hypp.NodeIndex
+import de.rholambdapi.hypp.NodeKind
+import de.rholambdapi.hypp.ResolvedTarget
 import de.rholambdapi.hypp.Span
 import de.rholambdapi.hypp.TextStyle
 import de.rholambdapi.hypp.cli.render.VectorGraphicSvg.toSvg
+import de.rholambdapi.hypp.resolve
 
 /**
  * A `.hyp` node's lines are a fixed-width character-cell grid — indentation and multi-column
@@ -16,20 +21,27 @@ import de.rholambdapi.hypp.cli.render.VectorGraphicSvg.toSvg
 internal const val HTML_BODY_STYLE = "white-space:pre-wrap;font-family:monospace"
 
 /**
+ * Markup for one link, supplied by whichever renderer is walking the spans: `text` is already
+ * escaped, `target` is the raw index. Renderers differ in more than the href — a popup or an
+ * external ref has no page to link *to* at all (see [HtmlSpans.stubContent]), and the substitute
+ * is a `<dialog>` in [HtmlRenderer]'s single page but a `<details>` in [EpubRenderer]'s
+ * script-free XHTML — so the whole anchor, not just its href, is the renderer's decision.
+ */
+internal typealias LinkMarkup = (text: String, target: NodeIndex) -> String
+
+/** The same-page fragment default, correct wherever every node has a matching `id`. */
+internal val fragmentLink: LinkMarkup = { text, target -> "<a href=\"#${target.value}\">$text</a>" }
+
+/**
  * Ported from `hyp2html`'s span renderer in `hypp`'s own `commonTest` (`Hyp2Html.kt`) — the exact
  * same rules, shared by every renderer that needs HTML-shaped span markup.
  */
 object HtmlSpans {
-    /**
-     * [linkHref] defaults to a same-page fragment (`#<index>`), correct for [HtmlRenderer]'s
-     * single-page output where every node has a matching `id`. [EpubRenderer] overrides it to a
-     * cross-file href, since each node there is its own XHTML document.
-     */
-    fun renderSpan(span: Span, linkHref: (NodeIndex) -> String = { "#${it.value}" }): String = buildString {
+    fun renderSpan(span: Span, linkMarkup: LinkMarkup = fragmentLink): String = buildString {
         val link = span.link
         val text = escapeHtml(span.text)
         if (link != null) {
-            append("<a href=\"").append(linkHref(link.target)).append("\">").append(text).append("</a>")
+            append(linkMarkup(text, link.target))
             return@buildString
         }
         val style = span.style
@@ -126,7 +138,7 @@ object HtmlSpans {
      */
     fun renderGrid(
         node: Node,
-        linkHref: (NodeIndex) -> String = { "#${it.value}" },
+        linkMarkup: LinkMarkup = fragmentLink,
         imageTag: (Graphic.Image) -> String?,
     ): String = buildString {
         val columnWidth = textColumnWidth(node)
@@ -139,7 +151,7 @@ object HtmlSpans {
 
         var start = 0
         for (breakRow in lineImagesByRow.keys.sorted()) {
-            appendSegment(node, start, breakRow, isLastSegment = false, overlays, columnWidth, linkHref, imageTag)
+            appendSegment(node, start, breakRow, isLastSegment = false, overlays, columnWidth, linkMarkup, imageTag)
             for (image in lineImagesByRow.getValue(breakRow)) {
                 val markup = imageTag(image) ?: continue
                 val placement =
@@ -148,7 +160,7 @@ object HtmlSpans {
             }
             start = breakRow
         }
-        appendSegment(node, start, node.lines.size, isLastSegment = true, overlays, columnWidth, linkHref, imageTag)
+        appendSegment(node, start, node.lines.size, isLastSegment = true, overlays, columnWidth, linkMarkup, imageTag)
     }
 
     /**
@@ -164,13 +176,13 @@ object HtmlSpans {
         isLastSegment: Boolean,
         overlays: List<Graphic>,
         columnWidth: Int,
-        linkHref: (NodeIndex) -> String,
+        linkMarkup: LinkMarkup,
         imageTag: (Graphic.Image) -> String?,
     ) {
         append("<div style=\"position:relative;line-height:1\"><p style=\"margin:0\">")
         for (index in start until end) {
             if (index > start) append("\n")
-            for (span in node.lines[index].spans) append(renderSpan(span, linkHref))
+            for (span in node.lines[index].spans) append(renderSpan(span, linkMarkup))
         }
         append("</p>")
         for (graphic in overlays) {
@@ -189,6 +201,54 @@ object HtmlSpans {
         }
         append("</div>")
     }
+
+    /**
+     * Whether [target] has no page of its own and so needs [stubContent] shown in place rather than
+     * a link. Deliberately answers without rendering anything: a renderer whose [LinkMarkup] asks
+     * this question is, in general, the same [LinkMarkup] [stubContent] would render the answer
+     * with, and a popup pair that links to each other would then recurse forever.
+     */
+    fun isStubTarget(document: HypDocument, target: NodeIndex): Boolean =
+        when (val resolved = document.resolve(target)) {
+            is ResolvedTarget.ToNode -> resolved.node.kind == NodeKind.POPUP
+            is ResolvedTarget.ToExternalRef, is ResolvedTarget.ToSystemAction -> true
+            else -> false
+        }
+
+    /**
+     * The content to show in place of a link to [target], or null when [target] is an ordinary node
+     * every renderer can just link to:
+     *
+     * - A **popup** node has no page of its own — ST-Guide shows it in a transient window over the
+     *   current one — so its own grid is returned, to be inlined wherever the reader asks for it.
+     * - An **external ref** points into a *different* `.hyp` file. Nothing resolves those yet (no
+     *   multi-file input, no `.REF` lookup), and rendering it as a link produced a dead one, so the
+     *   raw target is described instead. `fileName`/`nodeName` are decoded straight from the source
+     *   file's index table — untrusted input landing in HTML — hence [escapeHtml].
+     * - A **system action** (run a program, quit, close) is a viewer command, not content. Nothing
+     *   an exported document can do carries it out, and it has no page either, so it gets the same
+     *   descriptive treatment rather than a link to a file that was never written.
+     *
+     * The returned markup is already escaped; callers must inline it as-is.
+     */
+    fun stubContent(
+        document: HypDocument,
+        target: NodeIndex,
+        linkMarkup: LinkMarkup = fragmentLink,
+        imageTag: (Node, Graphic.Image) -> String? = { _, _ -> null },
+    ): String? = when (val resolved = document.resolve(target)) {
+        is ResolvedTarget.ToNode -> resolved.node
+            .takeIf { it.kind == NodeKind.POPUP }
+            ?.let { popup -> renderGrid(popup, linkMarkup) { imageTag(popup, it) } }
+        is ResolvedTarget.ToExternalRef -> escapeHtml(resolved.ref.describe())
+        is ResolvedTarget.ToSystemAction ->
+            escapeHtml("Viewer action — not available in this document: ${resolved.entry.name}")
+        else -> null
+    }
+
+    private fun ExternalRef.describe(): String =
+        "External reference — not included in this document: " +
+            if (fileName == null) nodeName else "$fileName/$nodeName"
 
     /**
      * Renders every [Graphic.Line]/[Graphic.Box]/[Graphic.RoundedBox] in [graphics] as inline SVG
