@@ -844,7 +844,7 @@ the root — both accessors now fall through to `ResolvedTarget.Missing`, one gu
 dispatch rather than one at each call site — with `anEntryWhoseObjectFailedToParseIsMissingRather
 ThanACrash` in `ResolvedTargetTest`. `./gradlew clean build` green in both projects.
 
-## Group F done: popups + external refs in Markdown/AsciiDoc/Org (2026-08-27)
+## Group F done: popups + external refs in Markdown/AsciiDoc/Org (2026-08-27, `e2ef14f`)
 
 Per `doc/PLAN` "there are issues at cozy floyd" (Group F, the plan's final group). Group E fixed
 bugs 8 + 9 for the two HTML-shaped renderers; the three plain-text dialects had the identical defect
